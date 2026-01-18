@@ -12,12 +12,18 @@ import (
 )
 
 func (h *RentalHandler) GetUserRentals(ctx *gin.Context) {
-	username := ctx.GetHeader("X-User-Name")
-	if username == "" {
-		log.Println("Need X-User-Name for rentals")
-		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "X-User-Name header is required"})
+	usernameRaw, exists := ctx.Get("username")
+	if !exists {
+		log.Println("GET /rentals, Need username for rentals")
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Username is required"})
 		return
 	}
+
+	username, ok := usernameRaw.(string)
+    if !ok {
+        ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Username should be string"})
+        return
+    }
 
 	rentals, err := h.services.GetUserRentals(username)
 
@@ -34,12 +40,18 @@ func (h *RentalHandler) GetUserRentals(ctx *gin.Context) {
 * Информация об оплате по идентификатору
  */
 func (h *RentalHandler) GetUserRentalByUid(ctx *gin.Context) {
-	username := ctx.GetHeader("X-User-Name")
-	if username == "" {
-		log.Println("Need X-User-Name for rental")
-		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "X-User-Name header is required"})
+	usernameRaw, exists := ctx.Get("username")
+	if !exists {
+		log.Println("GET /rentals/:uid, Need username for rentals")
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Username is required"})
 		return
 	}
+
+	username, ok := usernameRaw.(string)
+    if !ok {
+        ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Username should be string"})
+        return
+    }
 
 	rentalUid := ctx.Param("uid")
 
@@ -115,12 +127,18 @@ func (h *RentalHandler) CreateRental(ctx *gin.Context) {
 }
 
 func (h *RentalHandler) UpdateRental(ctx *gin.Context) {
-	username := ctx.GetHeader("X-User-Name")
-	if username == "" {
-		log.Println("Need X-User-Name for rental")
-		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "X-User-Name header is required"})
+	usernameRaw, exists := ctx.Get("username")
+	if !exists {
+		log.Println("PUT /rentals/:uid, Need username for rentals")
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Username is required"})
 		return
 	}
+
+	username, ok := usernameRaw.(string)
+    if !ok {
+        ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Username should be string"})
+        return
+    }
 
 	rentalUid := ctx.Param("uid")
 

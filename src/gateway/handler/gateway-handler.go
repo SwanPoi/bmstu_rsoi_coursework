@@ -27,6 +27,10 @@ func forwardRequest(c *gin.Context, method, targetURL string, headers map[string
 		return 0, nil, nil, err
 	}
 
+	if token, exists := c.Get("raw_token"); exists {
+        req.Header.Set("Authorization", "Bearer " + token.(string))
+    }
+
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -78,6 +82,10 @@ func (h *GatewayHandler) forwardRequestWithCB(
 		cb.RecordFailure()
 		return 0, nil, nil, err
 	}
+
+	if token, exists := c.Get("raw_token"); exists {
+        req.Header.Set("Authorization", "Bearer " + token.(string))
+    }
 
 	for k, v := range headers {
 		req.Header.Set(k, v)
@@ -150,17 +158,8 @@ func (h *GatewayHandler) GetCars(ctx *gin.Context) {
 }
 
 func (h *GatewayHandler) GetUserRentals(ctx *gin.Context) {
-	username := ctx.GetHeader("X-User-Name")
-	if username == "" {
-		log.Println("GET /rentals, Need X-User-Name for rentals")
-		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "X-User-Name header is required"})
-		return
-	}
-
-	headers := map[string]string{"X-User-Name": username}
-
 	// 1. Получить аренды
-	status, body, _, err := h.forwardRequestWithCB(ctx, "GET", h.config.RentalUrl + "/rental", headers, nil, h.rentalCB, true)
+	status, body, _, err := h.forwardRequestWithCB(ctx, "GET", h.config.RentalUrl + "/rental", nil, nil, h.rentalCB, true)
 
 	if err != nil {
 		log.Println("GET /rentals, can't get rentals", err.Error())
@@ -265,15 +264,6 @@ func (h *GatewayHandler) GetUserRentals(ctx *gin.Context) {
 }
 
 func (h *GatewayHandler) GetRentalById(ctx *gin.Context) {
-	username := ctx.GetHeader("X-User-Name")
-	if username == "" {
-		log.Println("GET /rental/:id, Need X-User-Name for rental")
-		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "X-User-Name header is required"})
-		return
-	}
-
-	headers := map[string]string{"X-User-Name": username}
-
 	rentalUid := ctx.Param("rentalUid")
 
 	if rentalUid == "" {
@@ -283,7 +273,7 @@ func (h *GatewayHandler) GetRentalById(ctx *gin.Context) {
 
 	rentalUrl := h.config.RentalUrl + "/rental/" + rentalUid
 	
-	status, body, _, err := h.forwardRequestWithCB(ctx, "GET", rentalUrl, headers, nil, h.rentalCB, true)
+	status, body, _, err := h.forwardRequestWithCB(ctx, "GET", rentalUrl, nil, nil, h.rentalCB, true)
 
 	if err != nil {
 		log.Println("GET /rental/:id, can't get rental with id = " + rentalUid + ", ", err.Error())
@@ -342,11 +332,6 @@ func (h *GatewayHandler) GetRentalById(ctx *gin.Context) {
 	paymentUrl := h.config.PaymentUrl + "/payment/" + rental.PaymentUID
 
 	paymentStatus, paymentBody, _, err := h.forwardRequestWithCB(ctx, "GET", paymentUrl, nil, nil, h.paymentCB, false)
-	// if err != nil {
-	// 	log.Println("GET /rental/:id, can't get payment with with uid = " + rental.PaymentUID + " ", err.Error())
-	// 	ctx.JSON(http.StatusBadGateway, models.ErrorResponse{Message: err.Error()})
-	// 	return
-	// }
 
 	if paymentStatus != http.StatusOK && err == nil {
 		log.Println("GET /rental/:id, payment getting error with with uid = " + rental.CarUID + " ")
@@ -370,12 +355,18 @@ func (h *GatewayHandler) GetRentalById(ctx *gin.Context) {
 }
 
 func (h *GatewayHandler) RentCar(ctx *gin.Context) {
-	username := ctx.GetHeader("X-User-Name")
-	if username == "" {
-		log.Println("POST /rental, Need X-User-Name for car rent creation")
-		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "X-User-Name header is required"})
+	usernameRaw, exists := ctx.Get("username")
+	if !exists {
+		log.Println("GET /rentals, Need username for rentals")
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Username is required"})
 		return
 	}
+
+	username, ok := usernameRaw.(string)
+    if !ok {
+        ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Username should be string"})
+        return
+    }
 
 	bodyBytes, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
@@ -537,15 +528,6 @@ func (h *GatewayHandler) RentCar(ctx *gin.Context) {
 }
 
 func (h *GatewayHandler) FinishCarRent(ctx *gin.Context) {
-	username := ctx.GetHeader("X-User-Name")
-	if username == "" {
-		log.Println("Need X-User-Name for car rent finishing")
-		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "X-User-Name header is required"})
-		return
-	}
-
-	headers := map[string]string{"X-User-Name": username}
-
 	rentalUid := ctx.Param("rentalUid")
 
 	if rentalUid == "" {
@@ -554,7 +536,7 @@ func (h *GatewayHandler) FinishCarRent(ctx *gin.Context) {
 
 	checkRentalUrl := h.config.RentalUrl + "/rental/" + rentalUid
 	
-	status, body, _, err := forwardRequest(ctx, "GET", checkRentalUrl, headers, nil)
+	status, body, _, err := forwardRequest(ctx, "GET", checkRentalUrl, nil, nil)
 
 	if err != nil {
 		log.Println("POST /rental/:id/finish, can't get rental with id = " + rentalUid + ", ", err.Error())
@@ -596,10 +578,17 @@ func (h *GatewayHandler) FinishCarRent(ctx *gin.Context) {
 
 	carStatus, _, _, err := forwardRequest(ctx, "PATCH", carUrl, nil, carStatusBytes)
 	if err != nil || carStatus != http.StatusOK {
+		headers := make(map[string]string)
+		token, _ := ctx.Get("raw_token")
+
+		if token != nil {
+			headers["Authorization"] = "Bearer " + token.(string)
+		}
+
 		queue.EnqueueRetry(queue.RetryRequest{
 			Method:  "PATCH",
 			URL:    carUrl,
-			Headers: nil,
+			Headers: headers,
 			Body:    carStatusBytes,
 		})
 	}
@@ -617,9 +606,16 @@ func (h *GatewayHandler) FinishCarRent(ctx *gin.Context) {
 
 	rentalUrl := h.config.RentalUrl + "/rental/" + rentalUid
 	
-	status, rentBody, _, err := forwardRequest(ctx, "PATCH", rentalUrl, headers, rentalBytes)
+	status, rentBody, _, err := forwardRequest(ctx, "PATCH", rentalUrl, nil, rentalBytes)
 
 	if err != nil || status != http.StatusOK {
+		headers := make(map[string]string)
+		token, _ := ctx.Get("raw_token")
+
+		if token != nil {
+			headers["Authorization"] = "Bearer " + token.(string)
+		}
+
 		queue.EnqueueRetry(queue.RetryRequest{
 			Method:  "PATCH",
 			URL:    rentalUrl,
@@ -639,14 +635,12 @@ func (h *GatewayHandler) FinishCarRent(ctx *gin.Context) {
 }
 
 func (h *GatewayHandler) RevokeRent(ctx *gin.Context) {
-	username := ctx.GetHeader("X-User-Name")
-	if username == "" {
-		log.Println("Need X-User-Name for rental revoking")
-		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "X-User-Name header is required"})
-		return
-	}
-
-	headers := map[string]string{"X-User-Name": username}
+	// username, exists := ctx.Get("username")
+	// if !exists {
+	// 	log.Println("GET /rentals, Need username for rentals")
+	// 	ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Username is required"})
+	// 	return
+	// }
 
 	rentalUid := ctx.Param("rentalUid")
 
@@ -656,7 +650,7 @@ func (h *GatewayHandler) RevokeRent(ctx *gin.Context) {
 
 	checkRentalUrl := h.config.RentalUrl + "/rental/" + rentalUid
 	
-	status, body, _, err := forwardRequest(ctx, "GET", checkRentalUrl, headers, nil)
+	status, body, _, err := forwardRequest(ctx, "GET", checkRentalUrl, nil, nil)
 
 	if err != nil {
 		log.Println("DELETE /rental/:id, can't get rental with id = " + rentalUid + ", ", err.Error())
@@ -699,10 +693,17 @@ func (h *GatewayHandler) RevokeRent(ctx *gin.Context) {
 	carStatus, _, _, err := forwardRequest(ctx, "PATCH", carUrl, nil, carStatusBytes)
 
 	if err != nil || carStatus != http.StatusOK {
+		headers := make(map[string]string)
+		token, _ := ctx.Get("raw_token")
+
+		if token != nil {
+			headers["Authorization"] = "Bearer " + token.(string)
+		}
+
 		queue.EnqueueRetry(queue.RetryRequest{
 			Method:  "PATCH",
 			URL:     carUrl,
-			Headers: nil,
+			Headers: headers,
 			Body:    carStatusBytes,
 		})
 		log.Printf("Car upsert queued for retry: %s", rentalUid)
@@ -721,9 +722,16 @@ func (h *GatewayHandler) RevokeRent(ctx *gin.Context) {
 
 	rentalUrl := h.config.RentalUrl + "/rental/" + rentalUid
 	
-	status, rentBody, _, err := forwardRequest(ctx, "PATCH", rentalUrl, headers, rentalBytes)
+	status, rentBody, _, err := forwardRequest(ctx, "PATCH", rentalUrl, nil, rentalBytes)
 
 	if err != nil || status != http.StatusOK  {
+		headers := make(map[string]string)
+		token, _ := ctx.Get("raw_token")
+
+		if token != nil {
+			headers["Authorization"] = "Bearer " + token.(string)
+		}
+
 		queue.EnqueueRetry(queue.RetryRequest{
 			Method:  "PATCH",
 			URL:    rentalUrl,
@@ -754,10 +762,17 @@ func (h *GatewayHandler) RevokeRent(ctx *gin.Context) {
 
 	paymentStatus, _, _, err := forwardRequest(ctx, "PATCH", paymentUrl, nil, paymentStatusBytes)
 	if err != nil || paymentStatus != http.StatusOK {
+		headers := make(map[string]string)
+		token, _ := ctx.Get("raw_token")
+
+		if token != nil {
+			headers["Authorization"] = "Bearer " + token.(string)
+		}
+
 		queue.EnqueueRetry(queue.RetryRequest{
 			Method:  	"PATCH",
 			URL:    	paymentUrl,
-			Headers: 	nil,
+			Headers: 	headers,
 			Body:    	paymentStatusBytes,
 		})
 	}

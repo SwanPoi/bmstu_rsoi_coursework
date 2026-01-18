@@ -1,0 +1,22 @@
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: "26.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+name: keycloak
+
+admin:
+  user: "admin"
+  password: "admin"
+
+svc:
+  name: keycloak-svc
+  type: "NodePort"
+  port: 8080
+  nodePort: 30080
+
+config:
+  name: keycloak-realm-config
+
+    

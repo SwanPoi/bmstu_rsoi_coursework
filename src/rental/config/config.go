@@ -13,6 +13,8 @@ type Config struct {
 	DBUser			string
 	DBPassword		string
 	DBName			string
+	IssuerURL		string
+	ClientID		string
 }
 
 func Load() Config {
@@ -24,6 +26,8 @@ func Load() Config {
 		DBPassword:		getenv("DB_PASSWORD", "postgres"),
 		DBUser: 		getenv("DB_USER", "postgres"),
 		DBName: 		getenv("DB_NAME", "rentals"),
+		IssuerURL: 		getenv("OIDC_ISSUER_URL", "http://keycloak:8080/realms/car-rental-system"),
+		ClientID: 		getenv("OIDC_CLIENT_ID", "car-rental-client"),
 	}
 }
 

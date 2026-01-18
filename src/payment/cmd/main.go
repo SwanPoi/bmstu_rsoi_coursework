@@ -34,7 +34,7 @@ func main() {
 
 	repos := repo.NewRepository(db)
 	service := services.NewServices(repos)
-	handler := handler.NewHandler(service)
+	handler := handler.NewHandler(service, &cfg)
 
 	srv := new(server.CommonServer)
 

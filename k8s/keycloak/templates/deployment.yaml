@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  labels:
+    app: {{ .Values.name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+    spec:
+      containers:
+      - name: {{ .Values.name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        command: 
+          - "/bin/bash"
+          - "-c"
+          - |
+            /opt/keycloak/bin/kc.sh start-dev --import-realm
+        env:
+        - name: KEYCLOAK_ADMIN
+          value: "{{ .Values.admin.user }}"
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          value: "{{ .Values.admin.password }}"
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 10
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: realm-config
+          mountPath: /opt/keycloak/data/import/realm-config.json
+          subPath: realm-config.json
+          readOnly: true
+      volumes:
+      - name: realm-config
+        configMap:
+          name: {{ .Values.config.name }}

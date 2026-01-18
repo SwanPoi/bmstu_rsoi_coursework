@@ -4,35 +4,204 @@ on:
     branches: [ master ]
 jobs:
   build:
-    name: Autograding
+    name: Build and publish services
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - uses: docker/setup-buildx-action@v2
 
-      # TODO build, publish to docker hub, deploy to k8s
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build images
+        timeout-minutes: 10
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: | 
+          docker compose -f docker-compose.build.yml build
+          docker compose -f docker-compose.build.yml push
+
+  unit-test:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Run Unit Tests
+        run: |
+          cd src/car
+          go test -v ./...
+          cd ../rental
+          go test -v ./...
+          cd ../payment
+          go test -v ./...
+          cd ../..
+
+  deploy:
+    name: Deploy to Minikube
+    runs-on: ubuntu-latest
+    needs: [build, unit-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Minikube
+        uses: manusa/actions-setup-minikube@v2.14.0
+        with:
+          minikube version: 'v1.32.0'
+          kubernetes version: 'v1.28.0'
+          driver: docker
+
+      - name: Start Minikube
+        run: |
+          echo "=== Start Minikube ==="
+          minikube start
+          minikube addons enable ingress
+
+      - name: Check Minikube
+        run: |
+          echo "=== Check Minikube ==="
+          minikube status
+
+      - name: Wait Ingress
+        run: |
+          echo "=== Wait ingress ==="
+          until kubectl get svc -n ingress-nginx ingress-nginx-controller-admission 2>/dev/null; do
+            sleep 5
+          done
+
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=300s
+
+      - name: Install Helm charts
+        run: |
+          kubectl create namespace test
+          cd ./k8s
+
+          echo "=== Install database ==="
+          helm install -n test postgres ./postgres 
+
+          echo "=== Check database pods status ==="
+          kubectl get pods -n test -l app=postgres
+
+          echo "=== Wait database pods ==="
+          kubectl wait --for=condition=ready pod -n test -l app=postgres --timeout=300s
+
+          echo "Database is ready"
+
+          echo "=== Install redis ==="
+          helm install -n test redis ./redis
+
+          echo "=== Check redis pods status ==="
+          kubectl get pods -n test -l app=redis
+
+          echo "=== Wait redis pods ==="
+          kubectl wait --for=condition=ready pod -n test -l app=redis --timeout=300s
+
+          echo "Redis is ready"
+          
+          echo "=== Install keycloak ==="
+          helm install -n test keycloak ./keycloak
+
+          echo "=== Check keycloak pods status ==="
+          kubectl get pods -n test -l app=keycloak
+
+          echo "=== Wait keycloak pods ==="
+          kubectl wait --for=condition=ready pod -n test -l app=keycloak --timeout=300s
+
+          echo "Keycloak is ready"
+
+          echo "=== Install services ==="
+          helm install -n test services ./services
+
+          echo "=== Wait services pods ==="
+          kubectl wait -n test -l app=gateway pod --for=condition=ready --timeout=3m
+          kubectl wait -n test -l app=cars pod --for=condition=ready --timeout=3m
+          kubectl wait -n test -l app=rental pod --for=condition=ready --timeout=3m
+          kubectl wait -n test -l app=payment pod --for=condition=ready --timeout=3m
+
+          echo "=== Pods status ==="
+          kubectl get all -n test -l app
+
+      
+      - name: Deploy Ingress
+        run: |
+          kubectl apply -f ./k8s/ingress.yaml -n test
+
+          echo "=== Waiting for Ingress ==="
+          for i in {1..30}; do 
+            INGRESS_ADDRESS=$(kubectl get ingress gateway-ingress -n test -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+            if [ -z "$INGRESS_ADDRESS" ]; then
+              INGRESS_ADDRESS=$(kubectl get ingress gateway-ingress -n test -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+            fi
+            
+            if [ -n "$INGRESS_ADDRESS" ]; then
+              echo "Ingress is ready! Ingress address: $INGRESS_ADDRESS"
+              break
+            fi
+            
+            echo "Attempt $i: Ingress address not yet assigned, waiting 20s..."
+            sleep 15
+            
+            if [ $i -eq 30 ]; then
+              echo "Timeout, stop waiting of Ingress address"
+              kubectl describe ingress gateway-ingress -n test
+              exit 1
+            fi
+          done
+
+      - name: Setup port forwarding
+        run: |
+          echo "=== Setup port forwarding to ingress on port 8080 ==="
+          kubectl port-forward service/ingress-nginx-controller -n ingress-nginx 8080:80 &
+          echo $! > /tmp/pf-ingress.pid
+          sleep 10
+          curl -f http://localhost:8080/manage/health
 
       - name: Run API Tests
         uses: matt-ball/newman-action@master
         with:
-          collection: <variant>/postman/collection.json
-          environment: <variant>/postman/environment.json
+          collection: v3/postman/collection.json
+          environment: v3/postman/environment.json
           delayRequest: 100
           reporters: '[ "cli" ]'
 
-      - uses: education/autograding@v1
-        id: autograder
-        continue-on-error: true
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          for pod in $(kubectl get pods -l app -o jsonpath='{.items[*].metadata.name}'); do
+            echo "=== Logs for pod: $pod ==="
+            kubectl logs $pod
+            echo "=== End logs for $pod ==="
+            echo
+          done
 
-      - name: Github auto grader mark
-        uses: Romanow/google-sheet-autograder-marker@v1.0
-        with:
-          google_token: ${{secrets.GOOGLE_API_KEY}}
-          sheet_id: "1xkgjUX6Qmk7rdJG-QPOToav-HWWtthJjnShIKnw3oIY"
-          homework_number: 5
-          user_column: 'D'
-          column_offset: 'F'
-          mark: "'+"
+      - name: Stop ingress port-forward
+        if: always()
+        run: |
+          if [ -f /tmp/pf-ingress.pid ]; then
+            echo "=== Remove port forwarding ==="
+            kill $(cat /tmp/pf-ingress.pid) 2>/dev/null || true
+            rm -f /tmp/pf-ingress.pid
+          fi
+
+      - name: Stop Minikube
+        if: always()
+        run: |
+          echo "=== Stopping Minikube ==="
+          minikube stop

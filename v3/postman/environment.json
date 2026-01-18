@@ -4,32 +4,32 @@
   "values": [
     {
       "key": "serviceUrl",
-      "value": "",
+      "value": "http://localhost:8080",
       "enabled": true
     },
     {
       "key": "identityProviderUrl",
-      "value": "",
+      "value": "http://localhost:8080/api/v1",
       "enabled": true
     },
     {
       "key": "username",
-      "value": "",
+      "value": "testuser",
       "enabled": true
     },
     {
       "key": "password",
-      "value": "",
+      "value": "qwerty123",
       "enabled": true
     },
     {
       "key": "clientId",
-      "value": "",
+      "value": "car-rental-client",
       "enabled": true
     },
     {
       "key": "clientSecret",
-      "value": "",
+      "value": "car-predefined-secret-key-9876",
       "enabled": true
     }
   ],

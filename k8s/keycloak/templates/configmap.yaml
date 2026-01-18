@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.name }}
+  labels:
+    app: {{ .Values.name }}
+data:
+  realm-config.json: |
+{{ $.Files.Get "configs/realm-config.json" | indent 4 }}
+  

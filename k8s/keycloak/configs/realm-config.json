@@ -1,0 +1,98 @@
+{
+    "realm": "car-rental-system",
+    "enabled": true,
+    "registrationAllowed": false,
+    "loginWithEmailAllowed": true,
+    "duplicateEmailsAllowed": false,
+    "resetPasswordAllowed": true,
+    "editUsernameAllowed": false,
+    "bruteForceProtected": true,
+    "permanentLockout": false,
+    "maxFailureWaitSeconds": 1000,
+    "minimumQuickLoginWaitSeconds": 60,
+    "waitIncrementSeconds": 60,
+    "quickLoginCheckMilliSeconds": 1000,
+    "maxDeltaTimeSeconds": 43200,
+    "failureFactor": 40,
+    "roles": {
+        "realm": [
+            {
+                "name": "admin",
+                "description": "Admin role"
+            },
+            {
+                "name": "user",
+                "description": "User role"
+            }
+        ]
+    },
+    "users": [
+        {
+            "username": "testuser",
+            "enabled": true,
+            "emailVerified": true,
+            "email": "testuser@test.com",
+            "firstName": "Ivan",
+            "lastName": "Ivanov",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "qwerty123",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": ["user"],
+            "requiredActions": []
+        }
+    ],
+    "clients": [
+        {
+            "clientId": "car-rental-client",
+            "name": "Car Rental Client",
+            "description": "Client for car rental system",
+            "enabled": true,
+            "clientAuthenticatorType": "client-secret",
+            "secret": "car-predefined-secret-key-9876",
+            "publicClient": false,
+            "serviceAccountsEnabled": true,
+            "directAccessGrantsEnabled": true,
+            "standardFlowEnabled": true,
+            "implicitFlowEnabled": false,
+            "authorizationServicesEnabled": true,
+            "redirectUris": ["*"],
+            "webOrigins": ["*"],
+            "protocol": "openid-connect",
+            "attributes": {
+                "access.token.lifespan": "3600",
+                "client.secret.creation.time": "0"
+            },
+            "protocolMappers": [
+                {
+                    "name": "username",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-property-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "userinfo.token.claim": "true",
+                        "user.attribute": "username",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true",
+                        "claim.name": "preferred_username",
+                        "jsonType.label": "String"
+                    }
+                },
+                {
+                    "name": "audience-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "config": {
+                        "included.client.audience": "car-rental-client",
+                        "id.token.claim": "false",
+                        "access.token.claim": "true"
+                    }
+                }
+            ]
+        }
+    ],
+    "requiredActions": []
+}

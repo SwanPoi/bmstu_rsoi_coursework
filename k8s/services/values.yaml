@@ -18,6 +18,8 @@ services:
       CAR_URL: http://cars-svc:8070/api/v1
       RENTAL_URL: http://rental-svc:8060/api/v1
       PAYMENT_URL: http://payment-svc:8050/api/v1
+      OIDC_ISSUER_URL: "http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_CLIENT_ID: "car-rental-client"
     healthCheck:
       enabled: true
       path: /manage/health
@@ -45,6 +47,8 @@ services:
       DB_NAME: cars
       DB_USER: postgres
       DB_PASSWORD: "postgres"
+      OIDC_ISSUER_URL: "http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_CLIENT_ID: "car-rental-client"
     healthCheck:
       enabled: true
       path: /manage/health
@@ -72,6 +76,8 @@ services:
       DB_NAME: rentals
       DB_USER: postgres
       DB_PASSWORD: "postgres"
+      OIDC_ISSUER_URL: "http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_CLIENT_ID: "car-rental-client"
     healthCheck:
       enabled: true
       path: /manage/health
@@ -99,6 +105,8 @@ services:
       DB_NAME: payments
       DB_USER: postgres
       DB_PASSWORD: "postgres"
+      OIDC_ISSUER_URL: "http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_CLIENT_ID: "car-rental-client"
     healthCheck:
       enabled: true
       path: /manage/health

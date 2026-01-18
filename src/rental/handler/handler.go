@@ -1,19 +1,41 @@
 package handler
 
 import (
+	"context"
+	"log"
 	"net/http"
+	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
 
+	config "github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/config"
 	services "github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/services"
 )
 
 type RentalHandler struct {
 	services *services.Services
+	verifier 	*oidc.IDTokenVerifier
 }
 
-func NewHandler(services *services.Services) *RentalHandler {
-	return &RentalHandler{services: services}
+func NewHandler(services *services.Services, config *config.Config) *RentalHandler {
+	var provider *oidc.Provider
+	var err error
+	for i := 0; i < 20; i++ {
+		provider, err = oidc.NewProvider(context.Background(), config.IssuerURL)
+		if err == nil {
+			break
+		}
+		log.Printf("Waiting for Keycloak... (attempt %d)", i+1)
+		time.Sleep(5 * time.Second)
+	}
+	if err != nil {
+		log.Fatalf("Keycloak is unavailable: %v", err)
+	}
+
+	verifier := provider.Verifier(&oidc.Config{ClientID: config.ClientID})
+
+	return &RentalHandler{services: services, verifier: verifier}
 }
 
 func (h *RentalHandler) SetupRoutes() *gin.Engine {
@@ -24,6 +46,7 @@ func (h *RentalHandler) SetupRoutes() *gin.Engine {
 	})
 
 	api := router.Group("/api/v1") 
+	api.Use(h.AuthMiddleware())
 	{
 		rentals := api.Group("/rental")
 		{
