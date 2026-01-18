@@ -1,0 +1,25 @@
+version: "3"
+services:
+  gateway:
+    image: ${DOCKERHUB_USERNAME}/gateway:latest
+    build:
+      context: src/gateway
+      dockerfile: Dockerfile
+
+  cars:
+    image: ${DOCKERHUB_USERNAME}/car-service:latest
+    build:
+      context: src/car
+      dockerfile: Dockerfile
+
+  rental:
+    image: ${DOCKERHUB_USERNAME}/rental-service:latest
+    build:
+      context: src/rental
+      dockerfile: Dockerfile
+
+  payment:
+    image: ${DOCKERHUB_USERNAME}/payment-service:latest
+    build:
+      context: src/payment
+      dockerfile: Dockerfile

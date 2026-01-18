@@ -1,0 +1,31 @@
+postgres:
+  image:
+    repository: library/postgres
+    tag: "13"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  name: postgres
+
+  svc:
+    name: postgres-svc
+    port: 5432
+
+  secret:
+    name: postgres-secret
+  
+  configMap:
+    name: postgres-init-cfg
+
+  database:
+    name: postgres
+
+  credentials:
+    user: postgres
+    password: postgres
+
+  persistence:
+    size: 8Gi
+    mountPath: /var/lib/postgresql/data
+    

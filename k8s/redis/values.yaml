@@ -1,0 +1,20 @@
+redis:
+  name: redis
+  image:
+    repository: redis
+    tag: "7"
+    pullPolicy: IfNotPresent
+  
+  svc:
+    port: 6379
+    name: redis-svc
+  
+  healthcheck:
+    interval: 5s
+    timeout: 5s
+    retries: 5
+
+  persistence:
+    enabled: false
+    size: 2Gi
+    mountPath: /data

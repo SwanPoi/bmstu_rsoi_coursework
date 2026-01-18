@@ -1,0 +1,114 @@
+# Общие настройки для всех микросервисов
+commonLabels:
+  project: car-rental-system
+
+# Список микросервисов
+services:
+  gateway:
+    image: swanpoi/gateway:latest
+    port: 8080
+    nodePort: 30000
+    serviceType: NodePort
+    replicas: 1
+    env:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      REDIS_HOST: redis-svc
+      REDIS_PORT: "6379"
+      CAR_URL: http://cars-svc:8070/api/v1
+      RENTAL_URL: http://rental-svc:8060/api/v1
+      PAYMENT_URL: http://payment-svc:8050/api/v1
+    healthCheck:
+      enabled: true
+      path: /manage/health
+      readinessProbe:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+
+  cars:
+    image: swanpoi/car-service:latest
+    port: 8070
+    serviceType: ClusterIP
+    replicas: 1
+    env:
+      HOST: "0.0.0.0"
+      PORT: "8070"
+      DB_HOST: postgres-svc
+      DB_PORT: "5432"
+      DB_NAME: cars
+      DB_USER: postgres
+      DB_PASSWORD: "postgres"
+    healthCheck:
+      enabled: true
+      path: /manage/health
+      readinessProbe:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+
+  rental:
+    image: swanpoi/rental-service:latest
+    port: 8060
+    serviceType: ClusterIP
+    replicas: 1
+    env:
+      HOST: "0.0.0.0"
+      PORT: "8060"
+      DB_HOST: postgres-svc
+      DB_PORT: "5432"
+      DB_NAME: rentals
+      DB_USER: postgres
+      DB_PASSWORD: "postgres"
+    healthCheck:
+      enabled: true
+      path: /manage/health
+      readinessProbe:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+
+  payment:
+    image: swanpoi/payment-service:latest
+    port: 8050
+    serviceType: ClusterIP
+    replicas: 1
+    env:
+      HOST: "0.0.0.0"
+      PORT: "8050"
+      DB_HOST: postgres-svc
+      DB_PORT: "5432"
+      DB_NAME: payments
+      DB_USER: postgres
+      DB_PASSWORD: "postgres"
+    healthCheck:
+      enabled: true
+      path: /manage/health
+      readinessProbe:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3

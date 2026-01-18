@@ -1,0 +1,19 @@
+{{- range $name, $config := .Values.services }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-svc
+spec:
+  type: {{ $config.serviceType | default "ClusterIP" }}
+  selector:
+    app: {{ $name }}
+  ports:
+    - protocol: TCP
+      port: {{ $config.port }}
+      targetPort: {{ $config.port }}
+      # {{- if and (eq $config.serviceType "NodePort") $config.nodePort }}
+      # nodePort: {{ $config.nodePort }}
+      # {{- end }}
+---
+{{- end }}
