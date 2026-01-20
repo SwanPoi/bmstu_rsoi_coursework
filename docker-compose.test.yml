@@ -49,7 +49,7 @@ services:
       - "8443:8080"
   
   gateway:
-    image: swanpoi/gateway:latest
+    image: swanpoi/gateway:5.0.0
     container_name: gateway
     restart: on-failure
     environment:
@@ -74,7 +74,7 @@ services:
         condition: service_healthy
 
   cars:
-    image: swanpoi/car-service:latest
+    image: swanpoi/car-service:5.0.0
     container_name: car
     restart: on-failure
     environment:
@@ -99,7 +99,7 @@ services:
         condition: service_healthy
 
   rental:
-    image: swanpoi/rental-service:latest
+    image: swanpoi/rental-service:5.0.0
     container_name: rental
     restart: on-failure
     environment:
@@ -124,7 +124,7 @@ services:
         condition: service_healthy
 
   payment:
-    image: swanpoi/payment-service:latest
+    image: swanpoi/payment-service:5.0.0
     container_name: payment
     restart: on-failure
     environment:

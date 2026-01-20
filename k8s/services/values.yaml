@@ -5,7 +5,8 @@ commonLabels:
 # Список микросервисов
 services:
   gateway:
-    image: swanpoi/gateway:latest
+    image: swanpoi/gateway:5.0.0
+    pullPolicy: Always
     port: 8080
     nodePort: 30000
     serviceType: NodePort
@@ -35,7 +36,8 @@ services:
         failureThreshold: 3
 
   cars:
-    image: swanpoi/car-service:latest
+    image: swanpoi/car-service:5.0.0
+    pullPolicy: Always
     port: 8070
     serviceType: ClusterIP
     replicas: 1
@@ -64,7 +66,8 @@ services:
         failureThreshold: 3
 
   rental:
-    image: swanpoi/rental-service:latest
+    image: swanpoi/rental-service:5.0.0
+    pullPolicy: Always
     port: 8060
     serviceType: ClusterIP
     replicas: 1
@@ -93,7 +96,8 @@ services:
         failureThreshold: 3
 
   payment:
-    image: swanpoi/payment-service:latest
+    image: swanpoi/payment-service:5.0.0
+    pullPolicy: Always
     port: 8050
     serviceType: ClusterIP
     replicas: 1

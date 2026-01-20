@@ -19,6 +19,7 @@ spec:
       containers:
         - name: {{ $name }}
           image: {{ $config.image }}
+          imagePullPolicy: {{ $config.pullPolicy }}
           ports:
             - containerPort: {{ $config.port }}
           
