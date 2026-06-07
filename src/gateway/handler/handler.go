@@ -19,6 +19,10 @@ type GatewayRoutesConfig struct {
 	RentalUrl		string
 	PaymentUrl		string
 	IssuerURL		string
+	ClientID		string
+	ClientSecret	string
+	FrontendURL		string
+	IdpPublicURL	string
 }
 
 type GatewayHandler struct {
@@ -38,11 +42,11 @@ func NewHandler(services *services.Services, config *config.HandlerConfig) *Gate
 		if err == nil {
 			break
 		}
-		log.Printf("Waiting for Keycloak... (attempt %d)", i+1)
+		log.Printf("Waiting for Identity Provider... (attempt %d)", i+1)
 		time.Sleep(5 * time.Second)
 	}
 	if err != nil {
-		log.Fatalf("Keycloak is unavailable: %v", err)
+		log.Fatalf("Identity Provider is unavailable: %v", err)
 	}
 
 	verifier := provider.Verifier(&oidc.Config{ClientID: config.ClientID})
@@ -54,6 +58,10 @@ func NewHandler(services *services.Services, config *config.HandlerConfig) *Gate
 			PaymentUrl: 	config.PaymentUrl,
 			RentalUrl: 		config.RentalUrl,
 			IssuerURL: 		config.IssuerURL,
+			ClientID: 		config.ClientID,
+			ClientSecret: 	config.ClientSecret,
+			FrontendURL: 	config.FrontendURL,
+			IdpPublicURL: 	config.IdpPublicURL,
 		},
 		carCB:     cb.NewCircuitBreaker(5, 0.4, 30*time.Second),
 		rentalCB:  cb.NewCircuitBreaker(5, 0.4, 30*time.Second),
@@ -71,9 +79,10 @@ func (h *GatewayHandler) SetupRoutes() *gin.Engine {
 
 	api := router.Group("/api/v1")
     {
-        api.POST("/authorize", h.Authorize)
-		api.POST("/oauth/token", h.Authorize)
-        api.GET("/callback", h.Callback)
+        api.GET("/authorize", h.Authorize)
+		api.GET("/callback", h.Callback)
+		api.GET("/logout", h.Logout)
+		api.POST("/register", h.RegisterUser)
     }
 
 	secure := router.Group("/api/v1") 
@@ -82,6 +91,12 @@ func (h *GatewayHandler) SetupRoutes() *gin.Engine {
 		cars := secure.Group("/cars") 
 		{
 			cars.GET("", h.GetCars)
+
+			adminCars := cars.Group("")
+			adminCars.Use(h.RolesMiddleware([]string{"Admin"}))
+			{
+				adminCars.POST("", h.CreateCar)
+			}
 		}
 
 		rental := secure.Group("/rental")
@@ -94,6 +109,12 @@ func (h *GatewayHandler) SetupRoutes() *gin.Engine {
 
 			rental.DELETE(":rentalUid", h.RevokeRent)
 		}
+
+		admin := secure.Group("")
+        admin.Use(h.RolesMiddleware([]string{"Admin"}))
+        {
+            admin.POST("/users", h.CreateUser)
+        }
 	}
 
 	return router

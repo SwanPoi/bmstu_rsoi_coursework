@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/google/uuid"
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/car/converters"
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/car/models"
 	repo "github.com/SwanPoi/bmstu_rsoi_lab2/src/car/repositories"
@@ -14,10 +15,9 @@ func NewCarService(repo repo.ICarRepo) *CarService {
 	return &CarService{repo: repo}
 }
 
-func (s *CarService) GetCars(page int, size int, showAll bool) (*models.PaginationResponse, error) {
+func (s *CarService) GetCars(page int, size int, showAll bool, excludeIds []string) (*models.PaginationResponse, error) {
 	offset := (page - 1) * size
-
-	cars, total, err := s.repo.GetCars(offset, size, showAll)
+	cars, total, err := s.repo.GetCars(offset, size, showAll, excludeIds)
 
 	if err != nil {
 		return nil, err
@@ -26,14 +26,35 @@ func (s *CarService) GetCars(page int, size int, showAll bool) (*models.Paginati
 	carsResponse := converters.CarResponsesFromCars(cars)
 
 	paginationResponse := &models.PaginationResponse{
-		Page: page,
-		PageSize: size,
+		Page:          page,
+		PageSize:      size,
 		TotalElements: total,
-		Items: carsResponse,
+		Items:         carsResponse,
 	}
 
 	return paginationResponse, nil
 }
+
+// func (s *CarService) GetCars(page int, size int, showAll bool) (*models.PaginationResponse, error) {
+// 	offset := (page - 1) * size
+
+// 	cars, total, err := s.repo.GetCars(offset, size, showAll)
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	carsResponse := converters.CarResponsesFromCars(cars)
+
+// 	paginationResponse := &models.PaginationResponse{
+// 		Page: page,
+// 		PageSize: size,
+// 		TotalElements: total,
+// 		Items: carsResponse,
+// 	}
+
+// 	return paginationResponse, nil
+// }
 
 func (s *CarService) GetCarByUid(uid string) (*models.ShortCar, error) {
 	car, err := s.repo.GetCarByUid(uid)
@@ -71,5 +92,18 @@ func (s *CarService) UpdateCar(car models.CarUpsert, uid string) (*models.ShortC
 
 	shortCar := converters.CarToShortCar(*updatedCar)
 
+	return &shortCar, nil
+}
+
+func (s *CarService) CreateCar(car models.Car) (*models.ShortCar, error) {
+	car.CarUID = uuid.New().String()
+	car.Availability = true
+
+	createdCar, err := s.repo.CreateCar(car)
+	if err != nil {
+		return nil, err
+	}
+
+	shortCar := converters.CarToShortCar(*createdCar)
 	return &shortCar, nil
 }

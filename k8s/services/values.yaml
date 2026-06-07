@@ -1,11 +1,9 @@
-# Общие настройки для всех микросервисов
 commonLabels:
   project: car-rental-system
 
-# Список микросервисов
 services:
   gateway:
-    image: swanpoi/gateway:5.0.0
+    image: swanpoi/gateway:6.4.0
     pullPolicy: Always
     port: 8080
     nodePort: 30000
@@ -19,8 +17,11 @@ services:
       CAR_URL: http://cars-svc:8070/api/v1
       RENTAL_URL: http://rental-svc:8060/api/v1
       PAYMENT_URL: http://payment-svc:8050/api/v1
-      OIDC_ISSUER_URL: "http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_ISSUER_URL: "http://idp-svc:8090"
       OIDC_CLIENT_ID: "car-rental-client"
+      OIDC_CLIENT_SECRET: "secret-gateway-bff-key"
+      FRONTEND_URL: "http://localhost:3000" 
+      IDP_PUBLIC_URL: "http://localhost:8090"
     healthCheck:
       enabled: true
       path: /manage/health
@@ -36,7 +37,7 @@ services:
         failureThreshold: 3
 
   cars:
-    image: swanpoi/car-service:5.0.0
+    image: swanpoi/car-service:6.4.0
     pullPolicy: Always
     port: 8070
     serviceType: ClusterIP
@@ -49,7 +50,7 @@ services:
       DB_NAME: cars
       DB_USER: postgres
       DB_PASSWORD: "postgres"
-      OIDC_ISSUER_URL: "http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_ISSUER_URL: "http://idp-svc:8090" #"http://keycloak-svc:8080/realms/car-rental-system"
       OIDC_CLIENT_ID: "car-rental-client"
     healthCheck:
       enabled: true
@@ -66,7 +67,7 @@ services:
         failureThreshold: 3
 
   rental:
-    image: swanpoi/rental-service:5.0.0
+    image: swanpoi/rental-service:6.4.0
     pullPolicy: Always
     port: 8060
     serviceType: ClusterIP
@@ -79,7 +80,7 @@ services:
       DB_NAME: rentals
       DB_USER: postgres
       DB_PASSWORD: "postgres"
-      OIDC_ISSUER_URL: "http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_ISSUER_URL: "http://idp-svc:8090" #"http://keycloak-svc:8080/realms/car-rental-system"
       OIDC_CLIENT_ID: "car-rental-client"
     healthCheck:
       enabled: true
@@ -96,7 +97,7 @@ services:
         failureThreshold: 3
 
   payment:
-    image: swanpoi/payment-service:5.0.0
+    image: swanpoi/payment-service:6.0.0
     pullPolicy: Always
     port: 8050
     serviceType: ClusterIP
@@ -109,7 +110,7 @@ services:
       DB_NAME: payments
       DB_USER: postgres
       DB_PASSWORD: "postgres"
-      OIDC_ISSUER_URL: "http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_ISSUER_URL: "http://idp-svc:8090" #"http://keycloak-svc:8080/realms/car-rental-system"
       OIDC_CLIENT_ID: "car-rental-client"
     healthCheck:
       enabled: true

@@ -1,0 +1,33 @@
+name: idp
+image:
+  repository: swanpoi/idp-service
+  tag: "1.2.0"
+  pullPolicy: Always
+
+replicaCount: 1
+port: 8090
+serviceType: ClusterIP
+
+env:
+  PORT: "8090"
+  HOST: "0.0.0.0"
+  DB_HOST: "postgres-svc"
+  DB_PORT: "5432"
+  DB_NAME: "idp"
+  DB_USER: "postgres"
+  DB_PASSWORD: "postgres"
+  ISSUER_URL: "http://idp-svc:8090" 
+
+healthCheck:
+  enabled: true
+  path: /manage/health 
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3

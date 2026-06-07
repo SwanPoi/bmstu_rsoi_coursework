@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"errors"
+	"log"
 
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/car/models"
 	"gorm.io/gorm"
@@ -15,14 +16,19 @@ func NewCarPostgres(db *gorm.DB) *CarPostgres {
 	return &CarPostgres{DB: db}
 }
 
-func (r *CarPostgres) GetCars(offset int, limit int, showAll bool) ([]models.Car, int, error) {
+func (r *CarPostgres) GetCars(offset int, limit int, showAll bool, excludeIds []string) ([]models.Car, int, error) {
 	var total int64
 	var cars []models.Car
-
 	query := r.DB.Model(&models.Car{})
 
 	if !showAll {
 		query = query.Where("availability = ?", true)
+	}
+
+	log.Printf("Exclude ids  length %d", len(excludeIds))
+	if len(excludeIds) > 0 {
+		log.Printf("Exclude ids %s", excludeIds[0])
+		query = query.Where("car_uid NOT IN ?", excludeIds)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -35,6 +41,27 @@ func (r *CarPostgres) GetCars(offset int, limit int, showAll bool) ([]models.Car
 
 	return cars, int(total), nil
 }
+
+// func (r *CarPostgres) GetCars(offset int, limit int, showAll bool) ([]models.Car, int, error) {
+// 	var total int64
+// 	var cars []models.Car
+
+// 	query := r.DB.Model(&models.Car{})
+
+// 	if !showAll {
+// 		query = query.Where("availability = ?", true)
+// 	}
+
+// 	if err := query.Count(&total).Error; err != nil {
+// 		return nil, 0, err
+// 	}
+
+// 	if err := query.Offset(offset).Limit(limit).Find(&cars).Error; err != nil {
+// 		return nil, 0, err
+// 	}
+
+// 	return cars, int(total), nil
+// }
 
 func (r *CarPostgres) GetCarByUid(uid string) (*models.Car, error) {
 	var car models.Car
@@ -84,4 +111,11 @@ func (r *CarPostgres) UpdateCar(car models.CarUpsert, uid string) (*models.Car, 
 	}
 
 	return &updatedCar, nil
+}
+
+func (r *CarPostgres) CreateCar(car models.Car) (*models.Car, error) {
+	if err := r.DB.Create(&car).Error; err != nil {
+		return nil, err
+	}
+	return &car, nil
 }

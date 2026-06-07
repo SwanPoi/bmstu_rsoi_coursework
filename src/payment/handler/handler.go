@@ -26,11 +26,11 @@ func NewHandler(services *services.Services, config *config.Config) *PaymentHand
 		if err == nil {
 			break
 		}
-		log.Printf("Waiting for Keycloak... (attempt %d)", i+1)
+		log.Printf("Waiting for Identity Provider... (attempt %d)", i+1)
 		time.Sleep(5 * time.Second)
 	}
 	if err != nil {
-		log.Fatalf("Keycloak is unavailable: %v", err)
+		log.Fatalf("Identity Provider is unavailable: %v", err)
 	}
 
 	verifier := provider.Verifier(&oidc.Config{ClientID: config.ClientID})

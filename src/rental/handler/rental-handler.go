@@ -173,3 +173,34 @@ func (h *RentalHandler) UpdateRental(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, rental)
 }
+
+func (h *RentalHandler) GetBookedCars(ctx *gin.Context) {
+	dateFromStr := ctx.Query("dateFrom")
+	dateToStr := ctx.Query("dateTo")
+
+	if dateFromStr == "" || dateToStr == "" {
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "dateFrom and dateTo are required"})
+		return
+	}
+
+	dateFrom, err := time.Parse("2006-01-02", dateFromStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Invalid dateFrom format (expected YYYY-MM-DD)"})
+		return
+	}
+
+	dateTo, err := time.Parse("2006-01-02", dateToStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Invalid dateTo format (expected YYYY-MM-DD)"})
+		return
+	}
+
+	carUIDs, err := h.services.GetBookedCarsInPeriod(dateFrom, dateTo)
+	if err != nil {
+		log.Println("Can't get booked cars, ", err.Error())
+		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, carUIDs)
+}

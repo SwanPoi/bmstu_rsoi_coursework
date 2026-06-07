@@ -7,7 +7,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
+	"strings"
 
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/gateway/converters"
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/gateway/models"
@@ -146,11 +148,101 @@ func (h *GatewayHandler) rollbackRental(ctx *gin.Context, rentalUID string, head
 
 // Main functions
 func (h *GatewayHandler) GetCars(ctx *gin.Context) {
-	status, body, headers, err := h.forwardRequestWithCB(ctx, "GET", h.config.CarUrl + "/cars", nil, nil, h.carCB, true)
+    dateFromStr := ctx.Query("dateFrom")
+    dateToStr := ctx.Query("dateTo")
+    var excludeIdsStr string
 
+    if dateFromStr != "" && dateToStr != "" {
+        originalRawQuery := ctx.Request.URL.RawQuery  
+        ctx.Request.URL.RawQuery = ""
+
+        rentalUrl := fmt.Sprintf("%s/rental/booked?dateFrom=%s&dateTo=%s", 
+            h.config.RentalUrl, dateFromStr, dateToStr)
+        
+        rentalStatus, rentalBody, _, rentalErr := h.forwardRequestWithCB(
+            ctx, "GET", rentalUrl, nil, nil, h.rentalCB, false,
+        )
+
+        ctx.Request.URL.RawQuery = originalRawQuery
+
+        if rentalErr != nil || rentalStatus != http.StatusOK {
+            log.Printf("WARNING: Rental Service unavailable, skipping date filter. Error: %v", rentalErr)
+        } else {
+            var bookedCarUIDs []string
+            if len(rentalBody) > 2 && string(rentalBody) != "{}" {
+                if err := json.Unmarshal(rentalBody, &bookedCarUIDs); err == nil && len(bookedCarUIDs) > 0 {
+                    excludeIdsStr = strings.Join(bookedCarUIDs, ",")
+                }
+            }
+        }
+    }
+
+    queryParams := url.Values{}
+    if page := ctx.Query("page"); page != "" {
+        queryParams.Set("page", page)
+    }
+    if size := ctx.Query("size"); size != "" {
+        queryParams.Set("size", size)
+    }
+    if showAll := ctx.Query("showAll"); showAll != "" {
+        queryParams.Set("showAll", showAll)
+    }
+    if excludeIdsStr != "" {
+        queryParams.Set("excludeIds", excludeIdsStr)
+    }
+
+    originalRawQuery := ctx.Request.URL.RawQuery
+    ctx.Request.URL.RawQuery = queryParams.Encode()
+    status, body, headers, err := h.forwardRequestWithCB(ctx, "GET", h.config.CarUrl+"/cars", nil, nil, h.carCB, true)
+    ctx.Request.URL.RawQuery = originalRawQuery
+
+    if err != nil {
+        log.Println("GET /cars, ", err.Error())
+        ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Car Service unavailable"})
+        return
+    }
+
+    ctx.Data(status, headers.Get("Content-Type"), body)
+}
+
+// func (h *GatewayHandler) GetCars(ctx *gin.Context) {
+// 	status, body, headers, err := h.forwardRequestWithCB(ctx, "GET", h.config.CarUrl + "/cars", nil, nil, h.carCB, true)
+
+// 	if err != nil {
+// 		log.Println("GET /cars, ", err.Error())
+// 		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{ Message: "Car Service unavailable" })
+// 		return
+// 	}
+
+// 	ctx.Data(status, headers.Get("Content-Type"), body)
+// }
+
+func (h *GatewayHandler) CreateCar(ctx *gin.Context) {
+	bodyBytes, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
-		log.Println("GET /cars, ", err.Error())
-		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{ Message: "Car Service unavailable" })
+		log.Println("POST /cars, invalid body")
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Fail during reading of request body for car creation"})
+		return
+	}
+
+	ctx.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	var carReq models.CarInsertRequest
+	if err := json.Unmarshal(bodyBytes, &carReq); err != nil {
+		log.Println("POST /cars, body parsing error, ", err.Error())
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Car creation request parsing error"})
+		return
+	}
+
+	if carReq.Brand == "" || carReq.Model == "" || carReq.RegistrationNumber == "" || carReq.Price == 0 {
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Brand, Model, RegistrationNumber and Price are required"})
+		return
+	}
+
+	status, body, headers, err := h.forwardRequestWithCB(ctx, "POST", h.config.CarUrl+"/cars", nil, bodyBytes, h.carCB, true)
+	if err != nil {
+		log.Println("POST /cars, ", err.Error())
+		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Car Service unavailable"})
 		return
 	}
 
@@ -412,33 +504,33 @@ func (h *GatewayHandler) RentCar(ctx *gin.Context) {
 		return
 	}
 
-	carStatusUpsert := models.CarStatusUpsert{
-		Availability: false,
-	}
+	// carStatusUpsert := models.CarStatusUpsert{
+	// 	Availability: false,
+	// }
 
-	carStatusBytes, err := json.Marshal(carStatusUpsert)
+	// carStatusBytes, err := json.Marshal(carStatusUpsert)
 
-	if err != nil {
-		log.Println("POST /rental, car request marshaling error, ", err.Error())
-		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Rent request parsing error"})
-		return
-	}
+	// if err != nil {
+	// 	log.Println("POST /rental, car request marshaling error, ", err.Error())
+	// 	ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Rent request parsing error"})
+	// 	return
+	// }
 
-	carUrl := h.config.CarUrl + "/cars/" + rentReq.CarUID
+	// carUrl := h.config.CarUrl + "/cars/" + rentReq.CarUID
 
-	status, body, _, err := forwardRequest(ctx, "PATCH", carUrl, nil, carStatusBytes)
+	// status, body, _, err := forwardRequest(ctx, "PATCH", carUrl, nil, carStatusBytes)
 
-	if err != nil {
-		log.Println("POST /rental, can't update car with uid = " + rentReq.CarUID + " ", err.Error())
-		ctx.JSON(http.StatusServiceUnavailable, models.ErrorResponse{ Message: "Car Service unavailable" })
-		return
-	}
+	// if err != nil {
+	// 	log.Println("POST /rental, can't update car with uid = " + rentReq.CarUID + " ", err.Error())
+	// 	ctx.JSON(http.StatusServiceUnavailable, models.ErrorResponse{ Message: "Car Service unavailable" })
+	// 	return
+	// }
 
-	if status != http.StatusOK {
-		log.Println("POST /rental, updating error car with uid = " + rentReq.CarUID)
-		ctx.Data(status, "application/json", body)
-		return
-	}
+	// if status != http.StatusOK {
+	// 	log.Println("POST /rental, updating error car with uid = " + rentReq.CarUID)
+	// 	ctx.Data(status, "application/json", body)
+	// 	return
+	// }
 
 	payCreateReq := models.PaymentCreateRequest{
 		DateFrom: rentReq.DateFrom,
@@ -563,35 +655,35 @@ func (h *GatewayHandler) FinishCarRent(ctx *gin.Context) {
 		return
 	}
 
-	carStatusUpsert := models.CarStatusUpsert{
-		Availability: true,
-	}
+	// carStatusUpsert := models.CarStatusUpsert{
+	// 	Availability: true,
+	// }
 
-	carStatusBytes, err := json.Marshal(carStatusUpsert)
+	// carStatusBytes, err := json.Marshal(carStatusUpsert)
 
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Car upsert marshalling error"})
-		return
-	}
+	// if err != nil {
+	// 	ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Car upsert marshalling error"})
+	// 	return
+	// }
 
-	carUrl := h.config.CarUrl + "/cars/" + rental.CarUID
+	// carUrl := h.config.CarUrl + "/cars/" + rental.CarUID
 
-	carStatus, _, _, err := forwardRequest(ctx, "PATCH", carUrl, nil, carStatusBytes)
-	if err != nil || carStatus != http.StatusOK {
-		headers := make(map[string]string)
-		token, _ := ctx.Get("raw_token")
+	// carStatus, _, _, err := forwardRequest(ctx, "PATCH", carUrl, nil, carStatusBytes)
+	// if err != nil || carStatus != http.StatusOK {
+	// 	headers := make(map[string]string)
+	// 	token, _ := ctx.Get("raw_token")
 
-		if token != nil {
-			headers["Authorization"] = "Bearer " + token.(string)
-		}
+	// 	if token != nil {
+	// 		headers["Authorization"] = "Bearer " + token.(string)
+	// 	}
 
-		queue.EnqueueRetry(queue.RetryRequest{
-			Method:  "PATCH",
-			URL:    carUrl,
-			Headers: headers,
-			Body:    carStatusBytes,
-		})
-	}
+	// 	queue.EnqueueRetry(queue.RetryRequest{
+	// 		Method:  "PATCH",
+	// 		URL:    carUrl,
+	// 		Headers: headers,
+	// 		Body:    carStatusBytes,
+	// 	})
+	// }
 
 	rentalReq := models.RentalUpsert{
 		Status: "FINISHED",
@@ -677,37 +769,37 @@ func (h *GatewayHandler) RevokeRent(ctx *gin.Context) {
 		return
 	}
 
-	carStatusUpsert := models.CarStatusUpsert{
-		Availability: true,
-	}
+	// carStatusUpsert := models.CarStatusUpsert{
+	// 	Availability: true,
+	// }
 
-	carStatusBytes, err := json.Marshal(carStatusUpsert)
+	// carStatusBytes, err := json.Marshal(carStatusUpsert)
 
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Car upsert marshalling error"})
-		return
-	}
+	// if err != nil {
+	// 	ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Car upsert marshalling error"})
+	// 	return
+	// }
 
-	carUrl := h.config.CarUrl + "/cars/" + rental.CarUID
+	// carUrl := h.config.CarUrl + "/cars/" + rental.CarUID
 
-	carStatus, _, _, err := forwardRequest(ctx, "PATCH", carUrl, nil, carStatusBytes)
+	// carStatus, _, _, err := forwardRequest(ctx, "PATCH", carUrl, nil, carStatusBytes)
 
-	if err != nil || carStatus != http.StatusOK {
-		headers := make(map[string]string)
-		token, _ := ctx.Get("raw_token")
+	// if err != nil || carStatus != http.StatusOK {
+	// 	headers := make(map[string]string)
+	// 	token, _ := ctx.Get("raw_token")
 
-		if token != nil {
-			headers["Authorization"] = "Bearer " + token.(string)
-		}
+	// 	if token != nil {
+	// 		headers["Authorization"] = "Bearer " + token.(string)
+	// 	}
 
-		queue.EnqueueRetry(queue.RetryRequest{
-			Method:  "PATCH",
-			URL:     carUrl,
-			Headers: headers,
-			Body:    carStatusBytes,
-		})
-		log.Printf("Car upsert queued for retry: %s", rentalUid)
-	}
+	// 	queue.EnqueueRetry(queue.RetryRequest{
+	// 		Method:  "PATCH",
+	// 		URL:     carUrl,
+	// 		Headers: headers,
+	// 		Body:    carStatusBytes,
+	// 	})
+	// 	log.Printf("Car upsert queued for retry: %s", rentalUid)
+	// }
 
 	rentalReq := models.RentalUpsert{
 		Status: "CANCELED",

@@ -26,7 +26,7 @@ func Load() Config {
 		DBPassword:		getenv("DB_PASSWORD", "postgres"),
 		DBUser: 		getenv("DB_USER", "postgres"),
 		DBName: 		getenv("DB_NAME", "payments"),
-		IssuerURL: 		getenv("OIDC_ISSUER_URL", "http://keycloak:8080/realms/car-rental-system"),
+		IssuerURL: 		getenv("OIDC_ISSUER_URL", "http://idp-svc:8090"),
 		ClientID: 		getenv("OIDC_CLIENT_ID", "car-rental-client"),
 	}
 }

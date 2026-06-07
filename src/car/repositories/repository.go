@@ -6,10 +6,12 @@ import (
 )
 
 type ICarRepo interface {
-	GetCars(int, int, bool) ([]models.Car, int, error)
+	GetCars(offset int, limit int, showAll bool, excludeIds []string) ([]models.Car, int, error)
+	// GetCars(int, int, bool) ([]models.Car, int, error)
 	GetCarByUid(string) (*models.Car, error)
 	GetCarsByUids([]string) ([]models.Car, error)
 	UpdateCar(models.CarUpsert, string) (*models.Car, error)
+	CreateCar(car models.Car) (*models.Car, error)
 }
 
 type Repository struct {

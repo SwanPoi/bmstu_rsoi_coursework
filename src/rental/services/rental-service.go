@@ -79,3 +79,7 @@ func (s *RentalService) UpdateRental(rental models.RentalUpsert, uid string, use
 
 	return s.repo.UpdateRental(rental, uid, username)
 }
+
+func (s *RentalService) GetBookedCarsInPeriod(dateFrom, dateTo time.Time) ([]string, error) {
+	return s.repo.GetBookedCarsInPeriod(dateFrom, dateTo)
+}

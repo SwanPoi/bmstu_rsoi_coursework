@@ -5,7 +5,15 @@ import (
     "strings"
 
     "github.com/gin-gonic/gin"
+    "github.com/SwanPoi/bmstu_rsoi_lab2/src/car/models"
 )
+
+type CustomClaims struct {
+	Username string   `json:"preferred_username"`
+    UserId   string   `json:"user_id"`
+	Email    string   `json:"email"`
+	Roles    []string `json:"roles"`
+}
 
 
 func (h *CarHandler) AuthMiddleware() gin.HandlerFunc {
@@ -18,12 +26,15 @@ func (h *CarHandler) AuthMiddleware() gin.HandlerFunc {
             return
         }
 
-        var claims struct {
-            Username string `json:"preferred_username"`
-        }
-        idToken.Claims(&claims)
+        var claims CustomClaims
+		if err := idToken.Claims(&claims); err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, models.ErrorResponse{Message: "Failed to parse token claims"})
+			return
+		}
 
-        c.Set("username", claims.Username)
-        c.Next()
+		c.Set("username", claims.Username)
+        c.Set("user_id", claims.UserId)
+		
+		c.Next()
     }
 }

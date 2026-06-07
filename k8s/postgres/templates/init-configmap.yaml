@@ -19,6 +19,9 @@ data:
     CREATE DATABASE payments;
     GRANT ALL PRIVILEGES ON DATABASE payments TO program;
 
+    CREATE DATABASE idp;
+    GRANT ALL PRIVILEGES ON DATABASE idp TO program;
+
   02-cars-schema.sql: |
     \c cars;
     CREATE TABLE IF NOT EXISTS cars
@@ -35,7 +38,14 @@ data:
     );
 
     INSERT INTO cars (car_uid, brand, model, registration_number, power, price, type, availability) VALUES
-    ('109b42f3-198d-4c89-9276-a7520a7120ab', 'Mercedes Benz', 'GLA 250', 'ЛО777Х799', 249, 3500, 'SEDAN', true)
+      ('109b42f3-198d-4c89-9276-a7520a7120ab', 'Mercedes Benz', 'GLA 250', 'ЛО777Х799', 249, 3500, 'SEDAN', true),
+      ('2a3b4c5d-6e7f-8a9b-0c1d-2e3f4a5b6c7d', 'BMW', 'X5 xDrive40i', 'А123БВ777', 340, 5500, 'SUV', true),
+      ('3b4c5d6e-7f8a-9b0c-1d2e-3f4a5b6c7d8e', 'Audi', 'A6 55 TFSI', 'В456ГД197', 340, 4800, 'SEDAN', true),
+      ('4c5d6e7f-8a9b-0c1d-2e3f-4a5b6c7d8e9f', 'Toyota', 'Camry 3.5', 'Е789ЖЗ50', 249, 3200, 'SEDAN', true),
+      ('5d6e7f8a-9b0c-1d2e-3f4a-5b6c7d8e9f0a', 'Mercedes Benz', 'V-Class V 300', 'И012КЛ77', 239, 6500, 'MINIVAN', true),
+      ('6e7f8a9b-0c1d-2e3f-4a5b-6c7d8e9f0a1b', 'Porsche', '911 Carrera S', 'М345НО199', 450, 12000, 'ROADSTER', true),
+      ('7f8a9b0c-1d2e-3f4a-5b6c-7d8e9f0a1b2c', 'Volkswagen', 'Tiguan 2.0 TSI', 'П678РС150', 220, 3800, 'SUV', true),
+      ('8a9b0c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d', 'Kia', 'Carnival 2.2 CRDi', 'Т901УФ799', 199, 4500, 'MINIVAN', true)
     ON CONFLICT DO NOTHING;
     ALTER TABLE cars OWNER TO program;
 
@@ -64,3 +74,54 @@ data:
         status      VARCHAR(20)              NOT NULL CHECK (status IN ('IN_PROGRESS', 'FINISHED', 'CANCELED'))
     );
     ALTER TABLE rental OWNER TO program;
+  
+  05-idp-schema.sql: |
+    \c idp;
+
+    CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        roles TEXT[] NOT NULL DEFAULT '{User}'
+    );
+
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+        client_id VARCHAR(255) PRIMARY KEY,
+        client_secret VARCHAR(255) NOT NULL,
+        redirect_uri VARCHAR(255) NOT NULL,
+        client_name VARCHAR(100) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_codes (
+        code VARCHAR(255) PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        client_id VARCHAR(255) NOT NULL,
+        redirect_uri TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        expires_at TIMESTAMP NOT NULL
+    );
+
+    ALTER TABLE auth_codes ADD COLUMN IF NOT EXISTS state VARCHAR(255);
+
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+        token VARCHAR(255) PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        client_id VARCHAR(255) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO oauth_clients (client_id, client_secret, redirect_uri, client_name)
+    VALUES ('car-rental-client', 'secret-gateway-bff-key', 'http://localhost:8081/api/v1/callback', 'Car Rental BFF Gateway')
+    ON CONFLICT (client_id) DO NOTHING;
+
+    INSERT INTO users (id, username, password_hash, email, roles) VALUES 
+    ('00000000-0000-0000-0000-000000000001', 'admin', '$2a$10$JFutNmsrbM1VANznxFznkOD4PkUi1G0cylH2obeYoSfMUVkWkIYf.', 'admin@mail.ru', '{Admin}')
+    ON CONFLICT (username) DO NOTHING;
+
+    ALTER TABLE users OWNER TO program;
+    ALTER TABLE oauth_clients OWNER TO program;
+    ALTER TABLE auth_codes OWNER TO program;
+    ALTER TABLE refresh_tokens OWNER TO program;
+

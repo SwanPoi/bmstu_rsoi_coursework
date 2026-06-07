@@ -17,6 +17,17 @@ spec:
             name: gateway-svc 
             port:
               number: 8080
+
+  - host: idp-svc
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: idp-svc
+              port:
+                number: 8090
   - http: 
       paths:
       - path: /

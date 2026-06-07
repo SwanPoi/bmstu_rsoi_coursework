@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"errors"
+	"time"
 
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/models"
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/utils"
@@ -72,4 +73,21 @@ func (r *RentalPostgres) UpdateRental(rentalUpsert models.RentalUpsert, uid stri
 	updatedRental := utils.ConvertToRentalResponse(rental)
 
 	return &updatedRental, nil
+}
+
+func (r *RentalPostgres) GetBookedCarsInPeriod(dateFrom, dateTo time.Time) ([]string, error) {
+	var carUIDs []string
+
+	err := r.DB.Model(&models.Rental{}).
+		Select("DISTINCT car_uid").
+		Where("status = ?", "IN_PROGRESS").
+		Where("date_from <= ?", dateTo).
+		Where("date_to >= ?", dateFrom).
+		Pluck("car_uid", &carUIDs).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return carUIDs, nil
 }

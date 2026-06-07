@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"time"
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/models"
 	"gorm.io/gorm"
 )
@@ -10,6 +11,7 @@ type IRentalRepo interface {
 	GetUserRentals(username string) ([]models.RentalResponse, error)
 	CreateRental(models.Rental) (error)
 	UpdateRental(rental models.RentalUpsert, uid string, username string) (*models.RentalResponse, error)
+	GetBookedCarsInPeriod(dateFrom, dateTo time.Time) ([]string, error)
 }
 
 type Repository struct {

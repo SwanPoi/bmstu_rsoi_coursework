@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,41 +15,82 @@ import (
 /*
 * Получение всех машин по фильтрам
  */
+
 func (h *CarHandler) GetCars(ctx *gin.Context) {
 	pageStr := ctx.DefaultQuery("page", "1")
 	sizeStr := ctx.DefaultQuery("size", "1")
 	showAll := ctx.Query("showAll") == "true"
-
+	
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: err.Error()})
 		return
 	}
-
+	
 	size, err := strconv.Atoi(sizeStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: err.Error()})
 		return
 	}
-
+	
 	if page < 1 {
 		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Page must be not less than 0"})
 		return
 	}
-
+	
 	if size < 1 || size > 100 {
 		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Size must be greater than 0 but smaller than 101"})
 		return
 	}
 
-	carsResponse, err := h.services.GetCars(page, size, showAll)
+	var excludeIds []string
+	if excludeIdsStr := ctx.Query("excludeIds"); excludeIdsStr != "" {
+		excludeIds = strings.Split(excludeIdsStr, ",")
+	}
+
+	carsResponse, err := h.services.GetCars(page, size, showAll, excludeIds)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: err.Error()})
 		return
 	}
-
+	
 	ctx.JSON(http.StatusOK, carsResponse)
 }
+// func (h *CarHandler) GetCars(ctx *gin.Context) {
+// 	pageStr := ctx.DefaultQuery("page", "1")
+// 	sizeStr := ctx.DefaultQuery("size", "1")
+// 	showAll := ctx.Query("showAll") == "true"
+
+// 	page, err := strconv.Atoi(pageStr)
+// 	if err != nil {
+// 		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: err.Error()})
+// 		return
+// 	}
+
+// 	size, err := strconv.Atoi(sizeStr)
+// 	if err != nil {
+// 		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: err.Error()})
+// 		return
+// 	}
+
+// 	if page < 1 {
+// 		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Page must be not less than 0"})
+// 		return
+// 	}
+
+// 	if size < 1 || size > 100 {
+// 		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Size must be greater than 0 but smaller than 101"})
+// 		return
+// 	}
+
+// 	carsResponse, err := h.services.GetCars(page, size, showAll)
+// 	if err != nil {
+// 		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: err.Error()})
+// 		return
+// 	}
+
+// 	ctx.JSON(http.StatusOK, carsResponse)
+// }
 
 /*
 * Получение машин по идентификаторам
@@ -125,4 +167,32 @@ func (h *CarHandler) UpdateCar(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, updatedCar)
+}
+
+func (h *CarHandler) CreateCar(ctx *gin.Context) {
+	var req models.Car
+
+	if err := ctx.BindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Bad Car creation body"})
+		return
+	}
+
+	if req.Brand == "" || req.Model == "" || req.RegistrationNumber == "" || req.Price == 0 {
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Brand, Model, RegistrationNumber and Price are required"})
+		return
+	}
+
+	validTypes := map[string]bool{"SEDAN": true, "SUV": true, "MINIVAN": true, "ROADSTER": true}
+	if req.Type != "" && !validTypes[req.Type] {
+		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "Invalid car type. Must be SEDAN, SUV, MINIVAN, or ROADSTER"})
+		return
+	}
+
+	createdCar, err := h.services.CreateCar(req)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: "Failed to create car: " + err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, createdCar)
 }

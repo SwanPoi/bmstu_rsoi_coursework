@@ -16,6 +16,9 @@ type HandlerConfig struct {
 	RedisPassword	string
 	IssuerURL		string
 	ClientID		string
+	ClientSecret	string
+	FrontendURL		string
+	IdpPublicURL	string
 }
 
 func Load() HandlerConfig {
@@ -28,8 +31,11 @@ func Load() HandlerConfig {
 		RedisHost: 		getenv("REDIS_HOST", "redis"),
 		RedisPort: 		getenv("REDIS_PORT", "6379"),
 		RedisPassword:	getenv("REDIS_PASSWORD", ""),
-		IssuerURL: 		getenv("OIDC_ISSUER_URL", "http://keycloak:8080/realms/car-rental-system"),
-		ClientID: 		getenv("OIDC_CLIENT_ID", "car-rental-client"),	
+		IssuerURL:     	getenv("OIDC_ISSUER_URL", "http://idp-svc:8090"),
+		ClientID:      	getenv("OIDC_CLIENT_ID", "car-rental-client"),
+		ClientSecret:  getenv("OIDC_CLIENT_SECRET", "secret-gateway-bff-key"),
+		FrontendURL:   getenv("FRONTEND_URL", "http://localhost:3000"),  
+		IdpPublicURL:  getenv("IDP_PUBLIC_URL", "http://localhost:8090"),   
 	}
 }
 

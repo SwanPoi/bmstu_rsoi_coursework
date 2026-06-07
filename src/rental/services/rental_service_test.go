@@ -42,6 +42,11 @@ func (m *MockRentalRepository) UpdateRental(rental models.RentalUpsert, uid stri
 	return nil, args.Error(1)
 }
 
+func (m *MockRentalRepository) GetBookedCarsInPeriod(dateFrom, dateTo time.Time) ([]string, error) {
+	args := m.Called(dateFrom, dateTo)
+	return args.Get(0).([]string), args.Error(1)
+}
+
 // Тест: GetUserRentalByUid возвращает ошибку, если запись не найдена
 func TestRentalService_GetUserRentalByUid_NotFound(t *testing.T) {
 	mockRepo := new(MockRentalRepository)
@@ -197,5 +202,59 @@ func TestRentalService_CreateRental_InvalidDate(t *testing.T) {
 	_, err := service.CreateRental(rentalReq)
 
 	assert.NotNil(t, err)
+	mockRepo.AssertExpectations(t)
+}
+
+// Тест: GetBookedCarsInPeriod успешно возвращает список занятых автомобилей
+func TestRentalService_GetBookedCarsInPeriod_Success(t *testing.T) {
+	mockRepo := new(MockRentalRepository)
+	service := NewRentalService(mockRepo)
+
+	dateFrom := time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
+	dateTo := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	expectedBookedCars := []string{"car-uid-1", "car-uid-2"}
+
+	mockRepo.On("GetBookedCarsInPeriod", dateFrom, dateTo).Return(expectedBookedCars, nil)
+
+	result, err := service.GetBookedCarsInPeriod(dateFrom, dateTo)
+
+	assert.Nil(t, err)
+	assert.Equal(t, expectedBookedCars, result)
+	assert.Equal(t, 2, len(result))
+	mockRepo.AssertExpectations(t)
+}
+
+// Тест: GetBookedCarsInPeriod возвращает пустой список, если нет занятых машин
+func TestRentalService_GetBookedCarsInPeriod_Empty(t *testing.T) {
+	mockRepo := new(MockRentalRepository)
+	service := NewRentalService(mockRepo)
+
+	dateFrom := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	dateTo := time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC)
+
+	mockRepo.On("GetBookedCarsInPeriod", dateFrom, dateTo).Return([]string{}, nil)
+
+	result, err := service.GetBookedCarsInPeriod(dateFrom, dateTo)
+
+	assert.Nil(t, err)
+	assert.Empty(t, result)
+	mockRepo.AssertExpectations(t)
+}
+
+// Тест: GetBookedCarsInPeriod возвращает ошибку из репозитория
+func TestRentalService_GetBookedCarsInPeriod_RepoError(t *testing.T) {
+	mockRepo := new(MockRentalRepository)
+	service := NewRentalService(mockRepo)
+
+	dateFrom := time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
+	dateTo := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+	expectedError := errors.New("database error")
+
+	mockRepo.On("GetBookedCarsInPeriod", dateFrom, dateTo).Return([]string{}, expectedError)
+
+	_, err := service.GetBookedCarsInPeriod(dateFrom, dateTo)
+
+	assert.True(t, errors.Is(err, expectedError))
 	mockRepo.AssertExpectations(t)
 }
