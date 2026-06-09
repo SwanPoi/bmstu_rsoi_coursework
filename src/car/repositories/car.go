@@ -87,11 +87,54 @@ func (r *CarPostgres) GetCarsByUids(uids []string) ([]models.Car, error) {
 	return cars, nil
 }
 
-func (r *CarPostgres) UpdateCar(car models.CarUpsert, uid string) (*models.Car, error) {
-	result := r.DB.Model(&models.Car{}).
-				Where("car_uid = ?", uid).
-				Update("availability", car.Availability)
+// func (r *CarPostgres) UpdateCar(car models.CarUpsert, uid string) (*models.Car, error) {
+// 	result := r.DB.Model(&models.Car{}).
+// 				Where("car_uid = ?", uid).
+// 				Update("availability", car.Availability)
 	
+// 	if result.Error != nil {
+// 		return nil, result.Error
+// 	}
+
+// 	if result.RowsAffected == 0 {
+// 		return nil, models.ErrorNotFound
+// 	}
+
+// 	var updatedCar models.Car
+
+// 	if err := r.DB.Where("car_uid = ?", uid).First(&updatedCar).Error; err != nil {
+// 		if errors.Is(err, gorm.ErrRecordNotFound) {
+// 			return nil, models.ErrorNotFound
+// 		}
+
+// 		return nil, err
+// 	}
+
+// 	return &updatedCar, nil
+// }
+
+func (r *CarPostgres) CreateCar(tx *gorm.DB, car models.Car) (*models.Car, error) {
+	if err := tx.Create(&car).Error; err != nil {
+		return nil, err
+	}
+	return &car, nil
+}
+
+func (r *CarPostgres) GetCarByUidInTransaction(tx *gorm.DB, uid string) (*models.Car, error) {
+	var car models.Car
+	if err := tx.Where("car_uid = ?", uid).First(&car).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, models.ErrorNotFound
+		}
+		return nil, err
+	}
+	return &car, nil
+}
+
+func (r *CarPostgres) UpdateCar(tx *gorm.DB, car models.CarUpsert, uid string) (*models.Car, error) {
+	result := tx.Model(&models.Car{}).
+		Where("car_uid = ?", uid).
+		Update("availability", car.Availability)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -101,21 +144,9 @@ func (r *CarPostgres) UpdateCar(car models.CarUpsert, uid string) (*models.Car, 
 	}
 
 	var updatedCar models.Car
-
-	if err := r.DB.Where("car_uid = ?", uid).First(&updatedCar).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, models.ErrorNotFound
-		}
-
+	if err := tx.Where("car_uid = ?", uid).First(&updatedCar).Error; err != nil {
 		return nil, err
 	}
 
 	return &updatedCar, nil
-}
-
-func (r *CarPostgres) CreateCar(car models.Car) (*models.Car, error) {
-	if err := r.DB.Create(&car).Error; err != nil {
-		return nil, err
-	}
-	return &car, nil
 }

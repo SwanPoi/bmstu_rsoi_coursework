@@ -15,6 +15,7 @@ type Config struct {
 	DBName			string
 	IssuerURL		string
 	ClientID		string
+	KafkaBrokers 	string
 }
 
 func Load() Config {
@@ -28,6 +29,7 @@ func Load() Config {
 		DBName: 		getenv("DB_NAME", "cars"),
 		IssuerURL: 		getenv("OIDC_ISSUER_URL", "http://idp-svc:8090"),
 		ClientID: 		getenv("OIDC_CLIENT_ID", "car-rental-client"),
+		KafkaBrokers: 	getenv("KAFKA_BROKERS", "kafka-svc:9092"),
 	}
 }
 

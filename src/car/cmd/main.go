@@ -9,6 +9,7 @@ import (
 	repo "github.com/SwanPoi/bmstu_rsoi_lab2/src/car/repositories"
 	server "github.com/SwanPoi/bmstu_rsoi_lab2/src/car/server"
 	services "github.com/SwanPoi/bmstu_rsoi_lab2/src/car/services"
+	event "github.com/SwanPoi/bmstu_rsoi_lab2/src/car/event"
 )
 
 func main() {
@@ -32,8 +33,22 @@ func main() {
 	log.Print("Successfully connect to database")
 	db.AutoMigrate(&models.Car{})
 
+	var publisher event.TransactionalEventPublisher
+	if cfg.KafkaBrokers != "" {
+		outboxPub, err := event.NewOutboxPublisher(db, cfg.KafkaBrokers)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize Outbox publisher: %v", err)
+			publisher = &event.NoopPublisher{}
+		} else {
+			publisher = outboxPub
+			defer outboxPub.Close()
+		}
+	} else {
+		publisher = &event.NoopPublisher{}
+	}
+
 	repos := repo.NewRepository(db)
-	service := services.NewServices(repos)
+	service := services.NewCarService(repos, publisher, db)
 	handler := handler.NewHandler(service, &cfg)
 
 	srv := new(server.CommonServer)

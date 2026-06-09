@@ -10,8 +10,9 @@ type ICarRepo interface {
 	// GetCars(int, int, bool) ([]models.Car, int, error)
 	GetCarByUid(string) (*models.Car, error)
 	GetCarsByUids([]string) ([]models.Car, error)
-	UpdateCar(models.CarUpsert, string) (*models.Car, error)
-	CreateCar(car models.Car) (*models.Car, error)
+	CreateCar(tx *gorm.DB, car models.Car) (*models.Car, error)
+	GetCarByUidInTransaction(tx *gorm.DB, uid string) (*models.Car, error)
+	UpdateCar(tx *gorm.DB, car models.CarUpsert, uid string) (*models.Car, error)
 }
 
 type Repository struct {

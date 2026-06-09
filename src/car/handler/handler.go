@@ -14,11 +14,11 @@ import (
 )
 
 type CarHandler struct {
-	services 	*services.Services
+	services 	*services.CarService
 	verifier 	*oidc.IDTokenVerifier
 }
 
-func NewHandler(services *services.Services, config *config.Config) *CarHandler {
+func NewHandler(services *services.CarService, config *config.Config) *CarHandler {
 	var provider *oidc.Provider
 	var err error
 	for i := 0; i < 20; i++ {

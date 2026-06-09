@@ -118,25 +118,34 @@ func (h *CarHandler) GetCarsBatch(ctx *gin.Context) {
  */
 func (h *CarHandler) GetCarById(ctx *gin.Context) {
 	carUid := ctx.Param("uid")
-
 	if _, err := uuid.Parse(carUid); err != nil {
 		ctx.JSON(http.StatusBadRequest, models.ErrorResponse{Message: "CarUid must be valid"})
 		return
 	}
 
-	car, err := h.services.GetCarByUid(carUid)
+	isFullStr := ctx.DefaultQuery("isFull", "false")
+	isFull := isFullStr == "true"
+
+	var carData interface{}
+	var err error
+
+	if isFull {
+		carData, err = h.services.GetFullCarByUid(carUid)
+	} else {
+		carData, err = h.services.GetCarByUid(carUid)
+	}
 
 	if err != nil {
 		if errors.Is(err, models.ErrorNotFound) {
 			message := "Car with car_uid = " + carUid + " is not found"
 			ctx.JSON(http.StatusNotFound, models.ErrorResponse{Message: message})
 		} else {
-			ctx.JSON(http.StatusInternalServerError, err)
+			ctx.JSON(http.StatusInternalServerError, models.ErrorResponse{Message: err.Error()})
 		}
 		return
 	}
 
-	ctx.JSON(http.StatusOK, car)
+	ctx.JSON(http.StatusOK, carData)
 }
 
 func (h *CarHandler) UpdateCar(ctx *gin.Context) {

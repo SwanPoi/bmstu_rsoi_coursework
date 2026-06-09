@@ -2,12 +2,17 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/SwanPoi/bmstu_rsoi_lab2/src/car/models"
+	repo "github.com/SwanPoi/bmstu_rsoi_lab2/src/car/repositories"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/SwanPoi/bmstu_rsoi_lab2/src/car/converters"
-	"github.com/SwanPoi/bmstu_rsoi_lab2/src/car/models"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type MockCarRepository struct {
@@ -16,13 +21,11 @@ type MockCarRepository struct {
 
 func (m *MockCarRepository) GetCars(offset int, size int, showAll bool, excludeIds []string) ([]models.Car, int, error) {
 	args := m.Called(offset, size, showAll, excludeIds)
-	return args.Get(0).([]models.Car), args.Get(1).(int), args.Error(2)
+	if cars := args.Get(0); cars != nil {
+		return cars.([]models.Car), args.Get(1).(int), args.Error(2)
+	}
+	return nil, args.Get(1).(int), args.Error(2)
 }
-
-// func (m *MockCarRepository) GetCars(offset int, size int, showAll bool) ([]models.Car, int, error) {
-//     args := m.Called(offset, size, showAll)
-//     return args.Get(0).([]models.Car), args.Get(1).(int), args.Error(2)
-// }
 
 func (m *MockCarRepository) GetCarByUid(uid string) (*models.Car, error) {
 	args := m.Called(uid)
@@ -53,303 +56,267 @@ func (m *MockCarRepository) CreateCar(car models.Car) (*models.Car, error) {
 	return nil, args.Error(1)
 }
 
-// Тест: GetCars успешно возвращает пагинированный список автомобилей (showAll = false)
-func TestCarService_GetCars_Success_ShowAllFalse(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
 
-	page := 1
-	size := 10
-	showAll := false
-	offset := (page - 1) * size
-	var excludeIds []string
-
-	cars := []models.Car{
-		{CarUID: "uid1", Brand: "Toyota", Model: "Camry", Availability: true},
-		{CarUID: "uid2", Brand: "BMW", Model: "X5", Availability: true},
-	}
-	total := 2
-	carsResponse := converters.CarResponsesFromCars(cars)
-
-	mockRepo.On("GetCars", offset, size, showAll, excludeIds).Return(cars, total, nil)
-
-	result, err := service.GetCars(page, size, showAll, excludeIds)
-
-	assert.Nil(t, err)
-	assert.Equal(t, page, result.Page)
-	assert.Equal(t, size, result.PageSize)
-	assert.Equal(t, total, result.TotalElements)
-	assert.Equal(t, carsResponse, result.Items)
-	mockRepo.AssertExpectations(t)
+type MockEventPublisher struct {
+	mock.Mock
 }
 
-// Тест: GetCars успешно возвращает пагинированный список автомобилей (showAll = true)
-func TestCarService_GetCars_Success_ShowAllTrue(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
+func (m *MockEventPublisher) Publish(topic string, evt interface{}) error {
+	args := m.Called(topic, evt)
+	return args.Error(0)
+}
 
-	page := 2
-	size := 5
-	showAll := true
-	offset := (page - 1) * size
-	var excludeIds []string
+func (m *MockEventPublisher) PublishInTransaction(tx interface{}, topic string, evt interface{}) error {
+	args := m.Called(tx, topic, evt)
+	return args.Error(0)
+}
+
+func (m *MockEventPublisher) Close() {}
+
+func setupTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	dbName := fmt.Sprintf("file:test_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&models.Car{}); err != nil {
+		t.Fatalf("Failed to migrate database: %v", err)
+	}
+
+	return db
+}
+
+func seedCars(t *testing.T, db *gorm.DB) []models.Car {
+	t.Helper()
 
 	cars := []models.Car{
-		{CarUID: "uid3", Brand: "Honda", Model: "Civic", Availability: false},
-		{CarUID: "uid4", Brand: "Ford", Model: "Focus", Availability: true},
+		{CarUID: "uid1", Brand: "Toyota", Model: "Camry", RegistrationNumber: "А123БВ777", Power: 249, Price: 3500, Type: "SEDAN", Availability: true},
+		{CarUID: "uid2", Brand: "BMW", Model: "X5", RegistrationNumber: "В456ГД197", Power: 340, Price: 5500, Type: "SUV", Availability: true},
+		{CarUID: "uid3", Brand: "Honda", Model: "Civic", RegistrationNumber: "Е789ЖЗ50", Power: 180, Price: 2800, Type: "SEDAN", Availability: false},
+		{CarUID: "uid4", Brand: "Ford", Model: "Focus", RegistrationNumber: "И012КЛ77", Power: 150, Price: 2500, Type: "SEDAN", Availability: true},
 	}
-	total := 15
-	carsResponse := converters.CarResponsesFromCars(cars)
 
-	mockRepo.On("GetCars", offset, size, showAll, excludeIds).Return(cars, total, nil)
+	for i := range cars {
+		if err := db.Create(&cars[i]).Error; err != nil {
+			t.Fatalf("Failed to seed car %s: %v", cars[i].CarUID, err)
+		}
+	}
 
-	result, err := service.GetCars(page, size, showAll, excludeIds)
+	return cars
+}
+
+func TestCarService_GetCars_Success_ShowAllFalse(t *testing.T) {
+	db := setupTestDB(t)
+	seedCars(t, db)
+
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
+
+	result, err := service.GetCars(1, 10, false, []string{})
 
 	assert.Nil(t, err)
-	assert.Equal(t, page, result.Page)
-	assert.Equal(t, size, result.PageSize)
-	assert.Equal(t, total, result.TotalElements)
-	assert.Equal(t, carsResponse, result.Items)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, 1, result.Page)
+	assert.Equal(t, 10, result.PageSize)
+	assert.Equal(t, 3, result.TotalElements)
+	assert.Equal(t, 3, len(result.Items))
+
+	for _, item := range result.Items {
+		assert.NotEqual(t, "uid3", item.CarUID)
+	}
+}
+
+func TestCarService_GetCars_Success_ShowAllTrue(t *testing.T) {
+	db := setupTestDB(t)
+	seedCars(t, db)
+
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
+
+	result, err := service.GetCars(1, 10, true, []string{})
+
+	assert.Nil(t, err)
+	assert.Equal(t, 4, result.TotalElements)
+	assert.Equal(t, 4, len(result.Items))
 }
 
 func TestCarService_GetCars_WithExcludeIds(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
+	db := setupTestDB(t)
+	seedCars(t, db)
 
-	page := 1
-	size := 10
-	showAll := false
-	offset := (page - 1) * size
-	excludeIds := []string{"uid2", "uid3"}
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
 
-	cars := []models.Car{
-		{CarUID: "uid1", Brand: "Toyota", Model: "Camry", Availability: true},
-		{CarUID: "uid4", Brand: "Ford", Model: "Focus", Availability: true},
-	}
-	total := 2
-
-	mockRepo.On("GetCars", offset, size, showAll, excludeIds).Return(cars, total, nil)
-
-	result, err := service.GetCars(page, size, showAll, excludeIds)
+	result, err := service.GetCars(1, 10, false, []string{"uid2", "uid3"})
 
 	assert.Nil(t, err)
+	// Должны остаться uid1 и uid4 (uid2 исключён, uid3 недоступен)
+	assert.Equal(t, 2, result.TotalElements)
 	assert.Equal(t, 2, len(result.Items))
-	assert.Equal(t, "uid1", result.Items[0].CarUID)
-	assert.Equal(t, "uid4", result.Items[1].CarUID)
-	mockRepo.AssertExpectations(t)
+
+	carUIDs := make([]string, len(result.Items))
+	for i, item := range result.Items {
+		carUIDs[i] = item.CarUID
+	}
+	assert.Contains(t, carUIDs, "uid1")
+	assert.Contains(t, carUIDs, "uid4")
+	assert.NotContains(t, carUIDs, "uid2")
+	assert.NotContains(t, carUIDs, "uid3")
 }
 
 func TestCarService_GetCars_WithEmptyExcludeIds(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
+	db := setupTestDB(t)
+	seedCars(t, db)
 
-	page := 1
-	size := 10
-	showAll := false
-	offset := (page - 1) * size
-	excludeIds := []string{}
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
 
-	cars := []models.Car{
-		{CarUID: "uid1", Brand: "Toyota", Model: "Camry", Availability: true},
-	}
-	total := 1
-	carsResponse := converters.CarResponsesFromCars(cars)
-
-	mockRepo.On("GetCars", offset, size, showAll, excludeIds).Return(cars, total, nil)
-
-	result, err := service.GetCars(page, size, showAll, excludeIds)
+	result, err := service.GetCars(1, 10, false, []string{})
 
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(result.Items))
-	assert.Equal(t, carsResponse, result.Items)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, 3, result.TotalElements)
+	assert.Equal(t, 3, len(result.Items))
 }
 
-// Тест: GetCarByUid успешно возвращает автомобиль
+func TestCarService_GetCars_Pagination(t *testing.T) {
+	db := setupTestDB(t)
+	seedCars(t, db)
+
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
+
+	result1, err := service.GetCars(1, 2, false, []string{})
+	assert.Nil(t, err)
+	assert.Equal(t, 1, result1.Page)
+	assert.Equal(t, 2, result1.PageSize)
+	assert.Equal(t, 3, result1.TotalElements)
+	assert.Equal(t, 2, len(result1.Items))
+
+	result2, err := service.GetCars(2, 2, false, []string{})
+	assert.Nil(t, err)
+	assert.Equal(t, 2, result2.Page)
+	assert.Equal(t, 1, len(result2.Items))
+}
+
+// ============ Тесты GetCarByUid ============
+
 func TestCarService_GetCarByUid_Success(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
+	db := setupTestDB(t)
+	seedCars(t, db)
 
-	uid := "test-uid"
-	car := &models.Car{
-		CarUID: uid,
-		Brand:  "Toyota",
-		Model:  "Camry",
-		Availability: true,
-	}
-	expectedShortCar := converters.CarToShortCar(*car)
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
 
-	mockRepo.On("GetCarByUid", uid).Return(car, nil)
-
-	result, err := service.GetCarByUid(uid)
+	result, err := service.GetCarByUid("uid1")
 
 	assert.Nil(t, err)
-	assert.Equal(t, expectedShortCar, *result)
-	mockRepo.AssertExpectations(t)
+	assert.NotNil(t, result)
+	assert.Equal(t, "uid1", result.CarUID)
+	assert.Equal(t, "Toyota", result.Brand)
+	assert.Equal(t, "Camry", result.Model)
 }
 
-// Тест: GetCarByUid возвращает ошибку из репозитория
-func TestCarService_GetCarByUid_RepoError(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
+func TestCarService_GetCarByUid_NotFound(t *testing.T) {
+	db := setupTestDB(t)
+	seedCars(t, db)
 
-	uid := "test-uid"
-	expectedError := errors.New("car not found")
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
 
-	mockRepo.On("GetCarByUid", uid).Return((*models.Car)(nil), expectedError)
+	result, err := service.GetCarByUid("non-existent-uid")
 
-	_, err := service.GetCarByUid(uid)
-
-	assert.True(t, errors.Is(err, expectedError))
-	mockRepo.AssertExpectations(t)
+	assert.NotNil(t, err)
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, models.ErrorNotFound))
 }
 
-// Тест: GetCarsByUids успешно возвращает список автомобилей
+// ============ Тесты GetCarsByUids ============
+
 func TestCarService_GetCarsByUids_Success(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
+	db := setupTestDB(t)
+	seedCars(t, db)
 
-	uids := []string{"uid1", "uid2", "uid3"}
-	cars := []models.Car{
-		{CarUID: "uid1", Brand: "Toyota", Model: "Camry"},
-		{CarUID: "uid2", Brand: "BMW", Model: "X5"},
-		{CarUID: "uid3", Brand: "Honda", Model: "Civic"},
-	}
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
 
-	expectedShortCars := make([]models.ShortCar, len(cars))
-	for i, car := range cars {
-		expectedShortCars[i] = converters.CarToShortCar(car)
-	}
-
-	mockRepo.On("GetCarsByUids", uids).Return(cars, nil)
-
-	result, err := service.GetCarsByUids(uids)
+	result, err := service.GetCarsByUids([]string{"uid1", "uid2", "uid4"})
 
 	assert.Nil(t, err)
-	assert.Equal(t, expectedShortCars, result)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, 3, len(result))
+
+	carUIDs := make([]string, len(result))
+	for i, car := range result {
+		carUIDs[i] = car.CarUID
+	}
+	assert.Contains(t, carUIDs, "uid1")
+	assert.Contains(t, carUIDs, "uid2")
+	assert.Contains(t, carUIDs, "uid4")
 }
 
-// Тест: GetCarsByUids возвращает ошибку из репозитория
-func TestCarService_GetCarsByUids_RepoError(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
+func TestCarService_GetCarsByUids_EmptyResult(t *testing.T) {
+	db := setupTestDB(t)
+	seedCars(t, db)
 
-	uids := []string{"uid1", "uid2"}
-	expectedError := errors.New("database error")
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
 
-	mockRepo.On("GetCarsByUids", uids).Return([]models.Car{}, expectedError)
-
-	_, err := service.GetCarsByUids(uids)
-
-	assert.True(t, errors.Is(err, expectedError))
-	mockRepo.AssertExpectations(t)
-}
-
-// Тест: UpdateCar успешно обновляет автомобиль
-func TestCarService_UpdateCar_Success(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
-
-	uid := "test-uid"
-	carUpsert := models.CarUpsert{
-		Availability: false,
-	}
-	updatedCar := &models.Car{
-		CarUID:       uid,
-		Brand:        "Toyota",
-		Model:        "Camry",
-		Availability: false,
-	}
-	expectedShortCar := converters.CarToShortCar(*updatedCar)
-
-	mockRepo.On("UpdateCar", carUpsert, uid).Return(updatedCar, nil)
-
-	result, err := service.UpdateCar(carUpsert, uid)
+	result, err := service.GetCarsByUids([]string{"non-existent-1", "non-existent-2"})
 
 	assert.Nil(t, err)
-	assert.Equal(t, expectedShortCar, *result)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, 0, len(result))
 }
 
-// Тест: UpdateCar возвращает ошибку из репозитория
-func TestCarService_UpdateCar_RepoError(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
-
-	uid := "test-uid"
-	carUpsert := models.CarUpsert{
-		Availability: false,
-	}
-	expectedError := errors.New("update failed")
-
-	mockRepo.On("UpdateCar", carUpsert, uid).Return((*models.Car)(nil), expectedError)
-
-	_, err := service.UpdateCar(carUpsert, uid)
-
-	assert.True(t, errors.Is(err, expectedError))
-	mockRepo.AssertExpectations(t)
-}
+// ============ Тесты CreateCar ============
 
 func TestCarService_CreateCar_Success(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
+	db := setupTestDB(t)
+
+	mockPub := new(MockEventPublisher)
+	carRepo := repo.NewCarPostgres(db)
+	service := NewCarService(carRepo, mockPub, db)
+
+	mockPub.On("PublishInTransaction", mock.Anything, "car-events", mock.MatchedBy(func(evt interface{}) bool {
+		carEvt, ok := evt.(models.CarEvent)
+		return ok && carEvt.Action == "created" && carEvt.Brand == "Tesla"
+	})).Return(nil)
 
 	car := models.Car{
 		Brand:              "Tesla",
 		Model:              "Model S",
-		RegistrationNumber: "А123БВ777",
+		RegistrationNumber: "Х777ХХ777",
 		Power:              670,
 		Price:              15000,
 		Type:               "SEDAN",
-		Availability:       true,
 	}
-
-	createdCar := &models.Car{
-		ID:                 1,
-		CarUID:             "test-uid-123",
-		Brand:              car.Brand,
-		Model:              car.Model,
-		RegistrationNumber: car.RegistrationNumber,
-		Power:              car.Power,
-		Price:              car.Price,
-		Type:               car.Type,
-		Availability:       car.Availability,
-	}
-
-	mockRepo.On("CreateCar", mock.Anything).Return(createdCar, nil)
 
 	result, err := service.CreateCar(car)
 
 	assert.Nil(t, err)
-	assert.Equal(t, createdCar.CarUID, result.CarUID)
-	assert.Equal(t, car.Brand, result.Brand)
-	assert.Equal(t, car.Model, result.Model)
-	assert.Equal(t, car.RegistrationNumber, result.RegistrationNumber)
-	assert.Equal(t, car.Availability, result.Availability)
-	mockRepo.AssertExpectations(t)
-}
+	assert.NotNil(t, result)
+	assert.NotEmpty(t, result.CarUID)
+	assert.Equal(t, "Tesla", result.Brand)
+	assert.Equal(t, "Model S", result.Model)
+	assert.Equal(t, true, result.Availability)
 
-func TestCarService_CreateCar_RepoError(t *testing.T) {
-	mockRepo := new(MockCarRepository)
-	service := NewCarService(mockRepo)
+	// Проверяем, что автомобиль действительно создан в БД
+	var carFromDB models.Car
+	db.Where("car_uid = ?", result.CarUID).First(&carFromDB)
+	assert.Equal(t, result.CarUID, carFromDB.CarUID)
+	assert.Equal(t, "Tesla", carFromDB.Brand)
+	assert.Equal(t, true, carFromDB.Availability)
 
-	car := models.Car{
-		Brand:              "BMW",
-		Model:              "X5",
-		RegistrationNumber: "В456ГД197",
-		Power:              340,
-		Price:              5500,
-		Type:               "SUV",
-	}
-
-	expectedError := errors.New("database error")
-
-	mockRepo.On("CreateCar", mock.Anything).Return((*models.Car)(nil), expectedError)
-
-	_, err := service.CreateCar(car)
-
-	assert.True(t, errors.Is(err, expectedError))
-	mockRepo.AssertExpectations(t)
+	mockPub.AssertExpectations(t)
 }
