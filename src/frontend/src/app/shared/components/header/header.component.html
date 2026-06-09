@@ -1,0 +1,68 @@
+<header class="header">
+  <div class="header__container">
+    <a routerLink="/" class="header__logo">АрендаАвто</a>
+
+    @if (authService.isAuthenticated()) {
+      <nav class="header__nav">
+        @if (authService.isUser()) {
+          <a routerLink="/cars" routerLinkActive="active" class="header__link">Автомобили</a>
+          <a routerLink="/rentals" routerLinkActive="active" class="header__link">Мои аренды</a>
+        }
+        @if (authService.isAdmin()) {
+          <a routerLink="/admin/stats" routerLinkActive="active" class="header__link">Статистика</a>
+          <a routerLink="/admin/cars" routerLinkActive="active" class="header__link">Автомобили</a>
+          <a routerLink="/admin/users" routerLinkActive="active" class="header__link">Пользователи</a>
+        }
+      </nav>
+
+      <div class="header__user-menu" [class.open]="isUserMenuOpen()">
+        <button 
+          class="header__user-chip" 
+          (click)="toggleUserMenu()"
+          aria-haspopup="true"
+          [attr.aria-expanded]="isUserMenuOpen()"
+        >
+          <span class="header__user-avatar">
+            {{ authService.user()?.username?.charAt(0)?.toUpperCase() || 'U' }}
+          </span>
+          <span class="header__user-name">{{ authService.user()?.username }}</span>
+          <span class="header__user-arrow" [class.rotated]="isUserMenuOpen()">▼</span>
+        </button>
+
+        @if (isUserMenuOpen()) {
+          <div class="header__user-popup">
+            <div class="header__user-info">
+              <div class="header__user-info-row">
+                <span class="header__user-info-label">Пользователь:</span>
+                <span class="header__user-info-value">{{ authService.user()?.username }}</span>
+              </div>
+              @if (authService.user()?.email) {
+                <div class="header__user-info-row">
+                  <span class="header__user-info-label">Email:</span>
+                  <span class="header__user-info-value header__user-email">
+                    {{ authService.user()?.email }}
+                  </span>
+                </div>
+              }
+              <div class="header__user-info-row">
+                <span class="header__user-info-label">Роль:</span>
+                <span class="header__user-role" [class.admin]="authService.isAdmin()">
+                  {{ authService.isAdmin() ? 'Администратор' : 'Пользователь' }}
+                </span>
+              </div>
+            </div>
+            <div class="header__user-popup-divider"></div>
+            <button class="header__user-logout" (click)="logout()">
+               Выйти
+            </button>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="header__auth">
+        <a routerLink="/login" class="header__link">Вход</a>
+        <a routerLink="/register" class="header__link header__link--primary">Регистрация</a>
+      </div>
+    }
+  </div>
+</header>

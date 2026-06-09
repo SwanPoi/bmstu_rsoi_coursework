@@ -1,0 +1,19 @@
+<div class="car-card">
+    <div class="car-card__header">
+    <h3 class="car-card__title">{{ car().brand }} {{ car().model }}</h3>
+    <span class="car-card__type">{{ car().type }}</span>
+    </div>
+    <div class="car-card__body">
+    <div class="car-card__row">
+        <span class="car-card__label">Класс:</span>
+        <span class="car-card__value">{{ typeMap[car().type] || car().type }}</span>
+    </div>
+    <div class="car-card__row">
+        <span class="car-card__label">Стоимость:</span>
+        <span class="car-card__value car-card__price">{{ car().price }} ₽/день</span>
+    </div>
+    </div>
+    <div class="car-card__footer">
+    <a [routerLink]="['/cars', car().carUid]" class="car-card__button">Подробнее</a>
+    </div>
+</div>

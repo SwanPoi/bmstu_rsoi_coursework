@@ -1,0 +1,14 @@
+.car-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column; }
+.car-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+.car-card__header { padding: 16px 20px; background: linear-gradient(135deg, #3b82f6, #1e40af); color: white; display: flex; justify-content: space-between; align-items: center; }
+.car-card__title { margin: 0; font-size: 18px; font-weight: 600; }
+.car-card__type { background: rgba(255, 255, 255, 0.2); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+.car-card__body { padding: 20px; flex: 1; }
+.car-card__row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+.car-card__row:last-child { border-bottom: none; }
+.car-card__label { color: #64748b; font-size: 14px; }
+.car-card__value { font-weight: 500; font-size: 14px; }
+.car-card__price { color: #10b981; font-size: 18px; font-weight: 700; }
+.car-card__footer { padding: 16px 20px; background: #f8fafc; border-top: 1px solid #f1f5f9; }
+.car-card__button { display: block; text-align: center; background: #3b82f6; color: white; padding: 10px; border-radius: 6px; text-decoration: none; font-weight: 500; transition: background 0.2s; }
+.car-card__button:hover { background: #2563eb; }

@@ -1,0 +1,202 @@
+.header {
+    background: #1e293b;
+    color: white;
+    padding: 0 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+
+    &__container {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+    }
+
+    &__logo {
+        font-size: 20px;
+        font-weight: bold;
+        color: white;
+        text-decoration: none;
+    }
+
+    &__nav {
+        display: flex;
+        gap: 8px;
+    }
+
+    &__link {
+        color: #cbd5e1;
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        transition: all 0.2s;
+
+        &:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        &.active { background: #3b82f6; color: white; }
+        &--primary { background: #3b82f6; color: white; }
+    }
+
+    &__user-menu {
+        position: relative;
+    }
+
+    &__user-chip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 24px;
+        padding: 6px 14px 6px 6px;
+        cursor: pointer;
+        color: white;
+        transition: all 0.2s;
+        font-size: 14px;
+
+        &:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
+        }
+    }
+
+    &__user-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 14px;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    &__user-name {
+        font-weight: 500;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__user-arrow {
+        font-size: 10px;
+        transition: transform 0.2s;
+        opacity: 0.7;
+
+        &.rotated {
+        transform: rotate(180deg);
+        }
+    }
+
+
+    &__user-popup {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+        min-width: 280px;
+        padding: 16px;
+        animation: popupIn 0.2s ease-out;
+        z-index: 200;
+    }
+
+    &__user-info {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    &__user-info-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    &__user-info-label {
+        font-size: 11px;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+    }
+
+    &__user-info-value {
+        font-size: 14px;
+        color: #1e293b;
+        font-weight: 500;
+        word-break: break-word;
+    }
+
+    &__user-email {
+        color: #3b82f6;
+    }
+
+    &__user-role {
+        display: inline-block;
+        padding: 4px 10px;
+        background: #f1f5f9;
+        color: #475569;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        width: fit-content;
+
+        &.admin {
+        background: #fef3c7;
+        color: #92400e;
+        }
+    }
+
+    &__user-popup-divider {
+        height: 1px;
+        background: #e2e8f0;
+        margin: 16px 0;
+    }
+
+    &__user-logout {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px;
+        background: transparent;
+        border: 1px solid #fee2e2;
+        color: #ef4444;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.2s;
+
+        &:hover {
+        background: #fef2f2;
+        border-color: #ef4444;
+        }
+    }
+
+    &__auth {
+        display: flex;
+        gap: 8px;
+    }
+}
+
+@keyframes popupIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
