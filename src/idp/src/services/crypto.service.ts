@@ -50,4 +50,11 @@ export class CryptoService {
     verifyJwt(token: string): any {
         return jwt.verify(token, this.privateKey, { algorithms: ['RS256'] });
     }
+
+    verifyToken(token: string): any {
+        return jwt.verify(token, this.publicKey, {
+            algorithms: ['RS256'],
+            issuer: process.env.ISSUER_URL,
+        });
+    }
 }

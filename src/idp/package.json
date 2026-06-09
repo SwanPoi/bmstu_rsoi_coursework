@@ -15,7 +15,8 @@
     "jose": "^5.2.4",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.11.5",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

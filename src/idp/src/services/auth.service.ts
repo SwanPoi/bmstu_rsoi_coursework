@@ -4,6 +4,7 @@ import { CryptoService } from './crypto.service';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { ClientRepository } from '../repositories/client.repository';
+import { KafkaService } from './kafka.service';
 
 export class AuthService {
     constructor(
@@ -11,14 +12,15 @@ export class AuthService {
         private authRepo: AuthRepository,
         private clientRepo: ClientRepository,
         private cryptoService: CryptoService,
+        private kafkaService: KafkaService,
     ) {}
 
     async generateAuthCode(username: string, passwordPlain: string, clientId: string, redirectUri: string, scope: string, state: string): Promise<string> {
         const user = await this.userRepo.findByUsername(username);
-        if (!user) throw new Error('Invalid credentials (no user');
+        if (!user) throw new Error('Ошибка авторизации');
 
         const isMatch = await bcrypt.compare(passwordPlain, user.password_hash);
-        if (!isMatch) throw new Error('Invalid password');
+        if (!isMatch) throw new Error('Ошибка ввода пароля');
 
         const code = uuidv4();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // Код живет 5 минут
@@ -68,6 +70,12 @@ export class AuthService {
         const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         await this.authRepo.saveRefreshToken(refreshToken, user.id, clientId, refreshExpiresAt);
 
+        await this.kafkaService.sendEvent('user-events', {
+            username: user.username,
+            action: 'login',
+            timestamp: new Date().toISOString(),
+        });
+
         return {
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -111,6 +119,12 @@ export class AuthService {
         const newRefreshToken = uuidv4();
         const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         await this.authRepo.saveRefreshToken(newRefreshToken, user.id, clientId, refreshExpiresAt);
+
+        await this.kafkaService.sendEvent('user-events', {
+            username: user.username,
+            action: 'token_refreshed',
+            timestamp: new Date().toISOString(),
+        });
 
         return {
             access_token: newAccessToken,
