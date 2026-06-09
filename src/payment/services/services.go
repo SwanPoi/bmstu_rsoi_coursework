@@ -1,6 +1,8 @@
 package services
 
 import (
+	"gorm.io/gorm"
+	"github.com/SwanPoi/bmstu_rsoi_lab2/src/payment/event"
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/payment/models"
 	repo "github.com/SwanPoi/bmstu_rsoi_lab2/src/payment/repositories"
 )
@@ -16,8 +18,8 @@ type Services struct {
 	IPaymentService
 }
 
-func NewServices(repo repo.IPaymentRepo) *Services {
+func NewServices(repo repo.IPaymentRepo, publisher event.TransactionalEventPublisher, db *gorm.DB) *Services {
 	return &Services{
-		IPaymentService: NewPaymentService(repo),
+		IPaymentService: NewPaymentService(repo, publisher, db),
 	}
 }

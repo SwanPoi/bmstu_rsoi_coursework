@@ -39,11 +39,10 @@ func (r *PaymentPostgres) GetPaymentsByUids(uids []string) ([]models.PaymentResp
 	return payments, nil
 }
 
-func (r *PaymentPostgres) UpdatePayment(payment models.PaymentUpsert, uid string) (*models.PaymentResponse, error) {
-	result := r.DB.Model(&models.Payment{}).
-				Where("payment_uid = ?", uid).
-				Update("status", payment.Status)
-	
+func (r *PaymentPostgres) UpdatePayment(tx *gorm.DB, payment models.PaymentUpsert, uid string) (*models.PaymentResponse, error) {
+	result := tx.Model(&models.Payment{}).
+		Where("payment_uid = ?", uid).
+		Update("status", payment.Status)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -53,18 +52,46 @@ func (r *PaymentPostgres) UpdatePayment(payment models.PaymentUpsert, uid string
 	}
 
 	var updatedPayment models.PaymentResponse
-
-	if err := r.DB.Select("payment_uid", "status", "price").Where("payment_uid = ?", uid).First(&updatedPayment).Error; err != nil {
+	if err := tx.Select("payment_uid", "status", "price").Where("payment_uid = ?", uid).First(&updatedPayment).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, models.ErrorNotFound
 		}
-
 		return nil, err
 	}
 
 	return &updatedPayment, nil
 }
 
-func (r *PaymentPostgres) CreatePayment(payment models.Payment) (error) {
-	return r.DB.Create(&payment).Error
+func (r *PaymentPostgres) CreatePayment(tx *gorm.DB, payment models.Payment) error {
+	return tx.Create(&payment).Error
 }
+
+// func (r *PaymentPostgres) UpdatePayment(payment models.PaymentUpsert, uid string) (*models.PaymentResponse, error) {
+// 	result := r.DB.Model(&models.Payment{}).
+// 				Where("payment_uid = ?", uid).
+// 				Update("status", payment.Status)
+	
+// 	if result.Error != nil {
+// 		return nil, result.Error
+// 	}
+
+// 	if result.RowsAffected == 0 {
+// 		return nil, models.ErrorNotFound
+// 	}
+
+// 	var updatedPayment models.PaymentResponse
+
+// 	if err := r.DB.Select("payment_uid", "status", "price").Where("payment_uid = ?", uid).First(&updatedPayment).Error; err != nil {
+// 		if errors.Is(err, gorm.ErrRecordNotFound) {
+// 			return nil, models.ErrorNotFound
+// 		}
+
+// 		return nil, err
+// 	}
+
+// 	return &updatedPayment, nil
+// }
+
+// func (r *PaymentPostgres) CreatePayment(payment models.Payment) (error) {
+// 	return r.DB.Create(&payment).Error
+// }

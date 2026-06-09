@@ -9,8 +9,10 @@ import (
 type IPaymentRepo interface {
 	GetPaymentByUid(string) (*models.PaymentResponse, error)
 	GetPaymentsByUids(uids []string) ([]models.PaymentResponse, error)
-	UpdatePayment(models.PaymentUpsert, string) (*models.PaymentResponse, error)
-	CreatePayment(payment models.Payment) (error)
+	// UpdatePayment(models.PaymentUpsert, string) (*models.PaymentResponse, error)
+	UpdatePayment(tx *gorm.DB, payment models.PaymentUpsert, uid string) (*models.PaymentResponse, error)
+	// CreatePayment(payment models.Payment) (error)
+	CreatePayment(tx *gorm.DB, payment models.Payment) error
 }
 
 type Repository struct {

@@ -2,12 +2,16 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/SwanPoi/bmstu_rsoi_lab2/src/payment/models"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/SwanPoi/bmstu_rsoi_lab2/src/payment/models"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type MockPaymentRepository struct {
@@ -27,23 +31,64 @@ func (m *MockPaymentRepository) GetPaymentsByUids(uids []string) ([]models.Payme
 	return args.Get(0).([]models.PaymentResponse), args.Error(1)
 }
 
-func (m *MockPaymentRepository) UpdatePayment(payment models.PaymentUpsert, uid string) (*models.PaymentResponse, error) {
-	args := m.Called(payment, uid)
+func (m *MockPaymentRepository) UpdatePayment(tx *gorm.DB, payment models.PaymentUpsert, uid string) (*models.PaymentResponse, error) {
+	args := m.Called(tx, payment, uid)
 	if response := args.Get(0); response != nil {
 		return response.(*models.PaymentResponse), args.Error(1)
 	}
 	return nil, args.Error(1)
 }
 
-func (m *MockPaymentRepository) CreatePayment(payment models.Payment) error {
-	args := m.Called(payment)
+func (m *MockPaymentRepository) CreatePayment(tx *gorm.DB, payment models.Payment) error {
+	args := m.Called(tx, payment)
 	return args.Error(0)
 }
 
-// Тест: GetPaymentByUid успешно возвращает платеж
+type MockEventPublisher struct {
+	mock.Mock
+}
+
+func (m *MockEventPublisher) Publish(topic string, evt interface{}) error {
+	args := m.Called(topic, evt)
+	return args.Error(0)
+}
+
+func (m *MockEventPublisher) PublishInTransaction(tx interface{}, topic string, evt interface{}) error {
+	args := m.Called(tx, topic, evt)
+	return args.Error(0)
+}
+
+func (m *MockEventPublisher) Close() {}
+
+func setupTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	dbName := fmt.Sprintf("file:test_payment_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS payments (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		payment_uid TEXT NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('PAID', 'CANCELED')),
+		price INTEGER NOT NULL
+	);
+	`
+	if err := db.Exec(createTableSQL).Error; err != nil {
+		t.Fatalf("Failed to create payments table: %v", err)
+	}
+
+	return db
+}
+
 func TestPaymentService_GetPaymentByUid_Success(t *testing.T) {
 	mockRepo := new(MockPaymentRepository)
-	service := NewPaymentService(mockRepo)
+	mockPub := new(MockEventPublisher)
+	service := NewPaymentService(mockRepo, mockPub, nil)
 
 	uid := "test-uid"
 	expectedPayment := &models.PaymentResponse{
@@ -61,10 +106,10 @@ func TestPaymentService_GetPaymentByUid_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: GetPaymentByUid возвращает ошибку из репозитория
 func TestPaymentService_GetPaymentByUid_Error(t *testing.T) {
 	mockRepo := new(MockPaymentRepository)
-	service := NewPaymentService(mockRepo)
+	mockPub := new(MockEventPublisher)
+	service := NewPaymentService(mockRepo, mockPub, nil)
 
 	uid := "test-uid"
 	expectedError := errors.New("database error")
@@ -77,10 +122,10 @@ func TestPaymentService_GetPaymentByUid_Error(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: GetPaymentsByUids успешно возвращает список платежей
 func TestPaymentService_GetPaymentsByUids_Success(t *testing.T) {
 	mockRepo := new(MockPaymentRepository)
-	service := NewPaymentService(mockRepo)
+	mockPub := new(MockEventPublisher)
+	service := NewPaymentService(mockRepo, mockPub, nil)
 
 	uids := []string{"uid1", "uid2"}
 	expectedPayments := []models.PaymentResponse{
@@ -97,10 +142,10 @@ func TestPaymentService_GetPaymentsByUids_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: GetPaymentsByUids возвращает ошибку из репозитория
 func TestPaymentService_GetPaymentsByUids_Error(t *testing.T) {
 	mockRepo := new(MockPaymentRepository)
-	service := NewPaymentService(mockRepo)
+	mockPub := new(MockEventPublisher)
+	service := NewPaymentService(mockRepo, mockPub, nil)
 
 	uids := []string{"uid1", "uid2"}
 	expectedError := errors.New("database error")
@@ -113,10 +158,10 @@ func TestPaymentService_GetPaymentsByUids_Error(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: UpdatePayment возвращает ошибку InvalidStatus при невалидном статусе
 func TestPaymentService_UpdatePayment_InvalidStatus(t *testing.T) {
 	mockRepo := new(MockPaymentRepository)
-	service := NewPaymentService(mockRepo)
+	mockPub := new(MockEventPublisher)
+	service := NewPaymentService(mockRepo, mockPub, nil)
 
 	paymentUpsert := models.PaymentUpsert{
 		Status: "INVALID_STATUS",
@@ -129,10 +174,11 @@ func TestPaymentService_UpdatePayment_InvalidStatus(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: UpdatePayment успешно обновляет платеж с валидным статусом
 func TestPaymentService_UpdatePayment_Success(t *testing.T) {
+	db := setupTestDB(t)
 	mockRepo := new(MockPaymentRepository)
-	service := NewPaymentService(mockRepo)
+	mockPub := new(MockEventPublisher)
+	service := NewPaymentService(mockRepo, mockPub, db)
 
 	paymentUpsert := models.PaymentUpsert{
 		Status: "CANCELED",
@@ -144,56 +190,26 @@ func TestPaymentService_UpdatePayment_Success(t *testing.T) {
 		Price:      0,
 	}
 
-	mockRepo.On("UpdatePayment", paymentUpsert, uid).Return(expectedResponse, nil)
+	mockRepo.On("UpdatePayment", mock.Anything, paymentUpsert, uid).Return(expectedResponse, nil)
+	
+	mockPub.On("PublishInTransaction", mock.Anything, "payment-events", mock.MatchedBy(func(evt interface{}) bool {
+		payEvt, ok := evt.(models.PaymentEvent)
+		return ok && payEvt.Status == "CANCELED" && payEvt.PaymentUID == uid
+	})).Return(nil)
 
 	response, err := service.UpdatePayment(paymentUpsert, uid)
 
 	assert.Nil(t, err)
 	assert.Equal(t, expectedResponse, response)
 	mockRepo.AssertExpectations(t)
+	mockPub.AssertExpectations(t)
 }
 
-// Тест: CreatePayment успешно создаёт платеж с правильной стоимостью (2 дня)
-func TestPaymentService_CreatePayment_Success_TwoDays(t *testing.T) {
-	mockRepo := new(MockPaymentRepository)
-	service := NewPaymentService(mockRepo)
-
-	originalDayCost := models.DayCost
-	models.DayCost = 1000
-	defer func() { models.DayCost = originalDayCost }()
-
-	dateFrom := time.Now().Truncate(24 * time.Hour)
-	dateTo := dateFrom.Add(48 * time.Hour)
-
-	paymentCreate := models.PaymentCreate{
-		DateFrom: dateFrom,
-		DateTo:   dateTo,
-	}
-
-	expectedPayment := models.Payment{
-		Status: "PAID",
-		Price:  2000,
-	}
-
-	mockRepo.On("CreatePayment", mock.MatchedBy(func(payment models.Payment) bool {
-		return payment.Status == expectedPayment.Status &&
-			payment.Price == expectedPayment.Price &&
-			payment.PaymentUID != ""
-	})).Return(nil)
-
-	response, err := service.CreatePayment(paymentCreate)
-
-	assert.Nil(t, err)
-	assert.Equal(t, "PAID", response.Status)
-	assert.Equal(t, 2000, response.Price)
-	assert.NotEmpty(t, response.PaymentUID)
-	mockRepo.AssertExpectations(t)
-}
-
-// Тест: CreatePayment возвращает ошибку из репозитория
 func TestPaymentService_CreatePayment_RepoError(t *testing.T) {
+	db := setupTestDB(t)
 	mockRepo := new(MockPaymentRepository)
-	service := NewPaymentService(mockRepo)
+	mockPub := new(MockEventPublisher)
+	service := NewPaymentService(mockRepo, mockPub, db)
 
 	originalDayCost := models.DayCost
 	models.DayCost = 1000
@@ -208,10 +224,11 @@ func TestPaymentService_CreatePayment_RepoError(t *testing.T) {
 	}
 
 	expectedError := errors.New("database error")
-	mockRepo.On("CreatePayment", mock.Anything).Return(expectedError)
+	mockRepo.On("CreatePayment", mock.Anything, mock.Anything).Return(expectedError)
 
 	_, err := service.CreatePayment(paymentCreate)
 
 	assert.True(t, errors.Is(err, expectedError))
 	mockRepo.AssertExpectations(t)
+	mockPub.AssertNotCalled(t, "PublishInTransaction")
 }

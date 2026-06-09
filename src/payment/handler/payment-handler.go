@@ -111,6 +111,7 @@ func (h *PaymentHandler) CreatePayment(ctx *gin.Context) {
 	payment, err := h.services.CreatePayment(models.PaymentCreate{
 		DateFrom: dateFrom,
 		DateTo:   dateTo,
+		PricePerDay: req.PricePerDay,
 	})
 
 	if err != nil {
