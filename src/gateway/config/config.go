@@ -11,6 +11,7 @@ type HandlerConfig struct {
 	CarUrl			string
 	RentalUrl		string
 	PaymentUrl		string
+	StatsUrl        string
 	RedisHost		string
 	RedisPort		string
 	RedisPassword	string
@@ -28,6 +29,7 @@ func Load() HandlerConfig {
 		CarUrl: 		getenv("CAR_URL", "http://cars:8070/api/v1"),
 		RentalUrl: 		getenv("RENTAL_URL", "http://rental:8060/api/v1"),
 		PaymentUrl: 	getenv("PAYMENT_URL", "http://payment:8050/api/v1"),
+		StatsUrl: 		getenv("STATS_URL", "http://stats-svc:8040/api/v1"),
 		RedisHost: 		getenv("REDIS_HOST", "redis"),
 		RedisPort: 		getenv("REDIS_PORT", "6379"),
 		RedisPassword:	getenv("REDIS_PASSWORD", ""),
@@ -35,7 +37,7 @@ func Load() HandlerConfig {
 		ClientID:      	getenv("OIDC_CLIENT_ID", "car-rental-client"),
 		ClientSecret:  getenv("OIDC_CLIENT_SECRET", "secret-gateway-bff-key"),
 		FrontendURL:   getenv("FRONTEND_URL", "http://localhost:3000"),  
-		IdpPublicURL:  getenv("IDP_PUBLIC_URL", "http://localhost:8090"),   
+		IdpPublicURL:  getenv("IDP_PUBLIC_URL", "http://localhost:8090"),  
 	}
 }
 

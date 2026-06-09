@@ -8,6 +8,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-contrib/cors"
 
 	cb "github.com/SwanPoi/bmstu_rsoi_lab2/src/gateway/circuitBreaker"
 	config "github.com/SwanPoi/bmstu_rsoi_lab2/src/gateway/config"
@@ -18,6 +19,7 @@ type GatewayRoutesConfig struct {
 	CarUrl			string
 	RentalUrl		string
 	PaymentUrl		string
+	StatsUrl     	string
 	IssuerURL		string
 	ClientID		string
 	ClientSecret	string
@@ -31,6 +33,7 @@ type GatewayHandler struct {
 	carCB       *cb.CircuitBreaker
 	rentalCB    *cb.CircuitBreaker
 	paymentCB   *cb.CircuitBreaker
+	statsCB   *cb.CircuitBreaker
 	verifier 	*oidc.IDTokenVerifier
 }
 
@@ -62,16 +65,28 @@ func NewHandler(services *services.Services, config *config.HandlerConfig) *Gate
 			ClientSecret: 	config.ClientSecret,
 			FrontendURL: 	config.FrontendURL,
 			IdpPublicURL: 	config.IdpPublicURL,
+			StatsUrl:		config.StatsUrl,
 		},
 		carCB:     cb.NewCircuitBreaker(5, 0.4, 30*time.Second),
 		rentalCB:  cb.NewCircuitBreaker(5, 0.4, 30*time.Second),
 		paymentCB: cb.NewCircuitBreaker(5, 0.4, 30*time.Second),
+		statsCB:   cb.NewCircuitBreaker(5, 0.4, 30*time.Second),
 		verifier: verifier,
 	}
 }
 
 func (h *GatewayHandler) SetupRoutes() *gin.Engine {
 	router := gin.New()
+
+	corsConfig := cors.Config{
+		AllowOrigins:     []string{"http://localhost:4200"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}
+	router.Use(cors.New(corsConfig))
 
 	router.GET("/manage/health", func (c *gin.Context) {
 		c.Status(http.StatusOK)
@@ -83,14 +98,18 @@ func (h *GatewayHandler) SetupRoutes() *gin.Engine {
 		api.GET("/callback", h.Callback)
 		api.GET("/logout", h.Logout)
 		api.POST("/register", h.RegisterUser)
+		api.GET("/register-page", h.RegisterPageRedirect)
     }
 
 	secure := router.Group("/api/v1") 
 	secure.Use(h.AuthMiddleware())
 	{
+		secure.GET("/me", h.GetCurrentUser)
+
 		cars := secure.Group("/cars") 
 		{
 			cars.GET("", h.GetCars)
+			cars.GET(":uid", h.GetCarById)
 
 			adminCars := cars.Group("")
 			adminCars.Use(h.RolesMiddleware([]string{"Admin"}))
@@ -114,6 +133,15 @@ func (h *GatewayHandler) SetupRoutes() *gin.Engine {
         admin.Use(h.RolesMiddleware([]string{"Admin"}))
         {
             admin.POST("/users", h.CreateUser)
+			admin.GET("/users/create-page", h.CreateUserPageRedirect)
+
+			stats := admin.Group("/stats")
+			{
+				stats.GET("/rentals", h.StatsRentals)
+				stats.GET("/payments", h.StatsPayments)
+				stats.GET("/cars", h.StatsCars)
+				stats.GET("/users", h.StatsUsers)
+			}
         }
 	}
 

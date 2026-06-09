@@ -91,12 +91,23 @@ func (h *GatewayHandler) Callback(c *gin.Context) {
 
 	c.SetCookie("access_token", tokenResp.AccessToken, tokenResp.ExpiresIn, "/", "", false, true)
 
-	c.Redirect(http.StatusTemporaryRedirect, h.config.FrontendURL+"/dashboard") // Или просто h.config.FrontendURL
+	c.Redirect(http.StatusTemporaryRedirect, h.config.FrontendURL+"/post-login")
 }
 
 func (h *GatewayHandler) Logout(c *gin.Context) {
 	c.SetCookie("access_token", "", -1, "/", "", false, true)
 	c.Redirect(http.StatusTemporaryRedirect, h.config.FrontendURL)
+}
+
+func (h *GatewayHandler) RegisterPageRedirect(c *gin.Context) {
+    redirectURI := url.QueryEscape(h.config.FrontendURL + "/login?registered=true")
+    
+    targetURL := fmt.Sprintf("%s/api/v1/register-page?redirect_uri=%s", 
+        h.config.IdpPublicURL, 
+        redirectURI,
+    )
+    
+    c.Redirect(http.StatusTemporaryRedirect, targetURL)
 }
 
 func (h *GatewayHandler) RegisterUser(c *gin.Context) {
@@ -158,4 +169,23 @@ func (h *GatewayHandler) CreateUser(c *gin.Context) {
 
     respBody, _ := io.ReadAll(resp.Body)
     c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), respBody)
+}
+
+func (h *GatewayHandler) CreateUserPageRedirect(c *gin.Context) {
+    token, err := c.Cookie("access_token")
+    if err != nil || token == "" {
+        c.JSON(http.StatusUnauthorized, gin.H{"message": "Authentication required"})
+        return
+    }
+
+    redirectURI := url.QueryEscape(h.config.FrontendURL + "/admin/users")
+
+    targetURL := fmt.Sprintf(
+        "%s/api/v1/users/create-page?admin_token=%s&redirect_uri=%s",
+        h.config.IdpPublicURL,
+        url.QueryEscape(token),
+        redirectURI,
+    )
+
+    c.Redirect(http.StatusTemporaryRedirect, targetURL)
 }
