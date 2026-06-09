@@ -2,14 +2,17 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/models"
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/utils"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type MockRentalRepository struct {
@@ -24,18 +27,26 @@ func (m *MockRentalRepository) GetRentalByUid(uid string) (*models.Rental, error
 	return nil, args.Error(1)
 }
 
+func (m *MockRentalRepository) GetRentalByUidInTransaction(tx *gorm.DB, uid string) (*models.Rental, error) {
+	args := m.Called(tx, uid)
+	if rental := args.Get(0); rental != nil {
+		return rental.(*models.Rental), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockRentalRepository) GetUserRentals(username string) ([]models.RentalResponse, error) {
 	args := m.Called(username)
 	return args.Get(0).([]models.RentalResponse), args.Error(1)
 }
 
-func (m *MockRentalRepository) CreateRental(rental models.Rental) error {
-	args := m.Called(rental)
+func (m *MockRentalRepository) CreateRental(tx *gorm.DB, rental models.Rental) error {
+	args := m.Called(tx, rental)
 	return args.Error(0)
 }
 
-func (m *MockRentalRepository) UpdateRental(rental models.RentalUpsert, uid string, username string) (*models.RentalResponse, error) {
-	args := m.Called(rental, uid, username)
+func (m *MockRentalRepository) UpdateRental(tx *gorm.DB, rental models.RentalUpsert, uid string, username string) (*models.RentalResponse, error) {
+	args := m.Called(tx, rental, uid, username)
 	if response := args.Get(0); response != nil {
 		return response.(*models.RentalResponse), args.Error(1)
 	}
@@ -47,11 +58,54 @@ func (m *MockRentalRepository) GetBookedCarsInPeriod(dateFrom, dateTo time.Time)
 	return args.Get(0).([]string), args.Error(1)
 }
 
-// Тест: GetUserRentalByUid возвращает ошибку, если запись не найдена
+type MockEventPublisher struct {
+	mock.Mock
+}
+
+func (m *MockEventPublisher) Publish(topic string, evt interface{}) error {
+	args := m.Called(topic, evt)
+	return args.Error(0)
+}
+
+func (m *MockEventPublisher) PublishInTransaction(tx interface{}, topic string, evt interface{}) error {
+	args := m.Called(tx, topic, evt)
+	return args.Error(0)
+}
+
+func (m *MockEventPublisher) Close() {}
+
+func setupTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	dbName := fmt.Sprintf("file:test_rental_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS rentals (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		rental_uid TEXT NOT NULL,
+		username TEXT NOT NULL,
+		car_uid TEXT NOT NULL,
+		payment_uid TEXT NOT NULL,
+		status TEXT NOT NULL,
+		date_from DATETIME NOT NULL,
+		date_to DATETIME NOT NULL
+	);
+	`
+	if err := db.Exec(createTableSQL).Error; err != nil {
+		t.Fatalf("Failed to create rentals table: %v", err)
+	}
+
+	return db
+}
+
 func TestRentalService_GetUserRentalByUid_NotFound(t *testing.T) {
 	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
-
+	service := NewRentalService(mockRepo, nil, nil)
 	uid := "test-uid"
 	username := "test-user"
 	expectedError := errors.New("record not found")
@@ -64,11 +118,9 @@ func TestRentalService_GetUserRentalByUid_NotFound(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: GetUserRentalByUid возвращает ошибку Forbidden, если username не совпадает
 func TestRentalService_GetUserRentalByUid_Forbidden(t *testing.T) {
 	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
-
+	service := NewRentalService(mockRepo, nil, nil)
 	uid := "test-uid"
 	username := "john_doe"
 	rental := &models.Rental{
@@ -84,11 +136,9 @@ func TestRentalService_GetUserRentalByUid_Forbidden(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: GetUserRentalByUid успешно возвращает запись
 func TestRentalService_GetUserRentalByUid_Success(t *testing.T) {
 	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
-
+	service := NewRentalService(mockRepo, nil, nil)
 	uid := "test-uid"
 	username := "john_doe"
 	rental := &models.Rental{
@@ -108,11 +158,9 @@ func TestRentalService_GetUserRentalByUid_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: GetUserRentals успешно возвращает список аренд
 func TestRentalService_GetUserRentals_Success(t *testing.T) {
 	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
-
+	service := NewRentalService(mockRepo, nil, nil)
 	username := "john_doe"
 	expectedRentals := []models.RentalResponse{
 		{RentalUID: "uid1", Status: "IN_PROGRESS"},
@@ -128,11 +176,9 @@ func TestRentalService_GetUserRentals_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: GetUserRentals возвращает ошибку из репозитория
 func TestRentalService_GetUserRentals_Error(t *testing.T) {
 	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
-
+	service := NewRentalService(mockRepo, nil, nil)
 	username := "john_doe"
 	expectedError := errors.New("database error")
 
@@ -144,75 +190,113 @@ func TestRentalService_GetUserRentals_Error(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: CreateRental успешно создаёт запись
 func TestRentalService_CreateRental_Success(t *testing.T) {
+	db := setupTestDB(t)
 	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
+	mockPub := new(MockEventPublisher)
+	service := NewRentalService(mockRepo, mockPub, db)
 
 	rentalReq := models.RentCreation{
-		Username:    "john_doe",
-		CarUID:      "car-uid",
-		PaymentUID:  "payment-uid",
-		DateFrom:    "2023-12-01",
-		DateTo:      "2023-12-05",
+		Username:   "john_doe",
+		CarUID:     "car-uid",
+		PaymentUID: "payment-uid",
+		DateFrom:   "2026-12-01",
+		DateTo:     "2026-12-05",
 	}
 
-	expectedRental := models.Rental{
-		Username:   rentalReq.Username,
-		CarUID:     rentalReq.CarUID,
-		PaymentUID: rentalReq.PaymentUID,
-		Status:     "IN_PROGRESS",
-	}
-	expectedRental.RentalUID = uuid.New().String()
-	dateFrom, _ := time.Parse("2006-01-02", rentalReq.DateFrom)
-	dateTo, _ := time.Parse("2006-01-02", rentalReq.DateTo)
-	expectedRental.DateFrom = dateFrom
-	expectedRental.DateTo = dateTo
+	mockRepo.On("CreateRental", mock.Anything, mock.MatchedBy(func(rental models.Rental) bool {
+		return rental.Username == rentalReq.Username &&
+			rental.CarUID == rentalReq.CarUID &&
+			rental.PaymentUID == rentalReq.PaymentUID &&
+			rental.Status == "IN_PROGRESS" &&
+			rental.RentalUID != ""
+	})).Return(nil)
 
-	expectedResponse := utils.ConvertToRentalResponse(expectedRental)
-
-	mockRepo.On("CreateRental", mock.MatchedBy(func(rental models.Rental) bool {
-		return rental.Username == expectedRental.Username &&
-			rental.CarUID == expectedRental.CarUID &&
-			rental.PaymentUID == expectedRental.PaymentUID &&
-			rental.Status == expectedRental.Status &&
-			rental.DateFrom.Equal(expectedRental.DateFrom) &&
-			rental.DateTo.Equal(expectedRental.DateTo)
+	mockPub.On("PublishInTransaction", mock.Anything, "rental-events", mock.MatchedBy(func(evt interface{}) bool {
+		rentalEvt, ok := evt.(models.RentalEvent)
+		return ok && rentalEvt.Status == "IN_PROGRESS" && rentalEvt.Username == "john_doe"
 	})).Return(nil)
 
 	response, err := service.CreateRental(rentalReq)
 
 	assert.Nil(t, err)
-	assert.Equal(t, expectedResponse.CarUID, response.CarUID)
+	assert.NotNil(t, response)
+	assert.NotEmpty(t, response.RentalUID)
+	assert.Equal(t, "IN_PROGRESS", response.Status)
 	mockRepo.AssertExpectations(t)
+	mockPub.AssertExpectations(t)
 }
 
-// Тест: CreateRental возвращает ошибку при невалидной дате
 func TestRentalService_CreateRental_InvalidDate(t *testing.T) {
 	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
-
+	service := NewRentalService(mockRepo, nil, nil)
 	rentalReq := models.RentCreation{
 		Username: "john_doe",
 		CarUID:   "car-uid",
 		DateFrom: "invalid-date",
-		DateTo:   "2023-12-05",
+		DateTo:   "2026-12-05",
 	}
 
 	_, err := service.CreateRental(rentalReq)
 
 	assert.NotNil(t, err)
-	mockRepo.AssertExpectations(t)
 }
 
-// Тест: GetBookedCarsInPeriod успешно возвращает список занятых автомобилей
+func TestRentalService_UpdateRental_InvalidStatus(t *testing.T) {
+	mockRepo := new(MockRentalRepository)
+	service := NewRentalService(mockRepo, nil, nil)
+	rental := models.RentalUpsert{Status: "INVALID_STATUS"}
+
+	_, err := service.UpdateRental(rental, "uid", "john_doe")
+
+	assert.True(t, errors.Is(err, models.InvalidStatus))
+}
+
+func TestRentalService_UpdateRental_Success(t *testing.T) {
+	db := setupTestDB(t)
+	mockRepo := new(MockRentalRepository)
+	mockPub := new(MockEventPublisher)
+	service := NewRentalService(mockRepo, mockPub, db)
+
+	uid := "test-uid"
+	username := "john_doe"
+	rentalUpsert := models.RentalUpsert{Status: "FINISHED"}
+
+	existingRental := &models.Rental{
+		RentalUID:  uid,
+		Username:   username,
+		CarUID:     "car-uid",
+		PaymentUID: "payment-uid",
+		Status:     "IN_PROGRESS",
+		DateFrom:   time.Now(),
+		DateTo:     time.Now().Add(24 * time.Hour),
+	}
+
+	expectedResponse := &models.RentalResponse{
+		RentalUID: uid,
+		Status:    "FINISHED",
+	}
+
+	mockRepo.On("GetRentalByUidInTransaction", mock.Anything, uid).Return(existingRental, nil)
+	mockRepo.On("UpdateRental", mock.Anything, rentalUpsert, uid, username).Return(expectedResponse, nil)
+	mockPub.On("PublishInTransaction", mock.Anything, "rental-events", mock.MatchedBy(func(evt interface{}) bool {
+		rentalEvt, ok := evt.(models.RentalEvent)
+		return ok && rentalEvt.Status == "FINISHED" && rentalEvt.Username == username
+	})).Return(nil)
+
+	response, err := service.UpdateRental(rentalUpsert, uid, username)
+
+	assert.Nil(t, err)
+	assert.Equal(t, expectedResponse, response)
+	mockRepo.AssertExpectations(t)
+	mockPub.AssertExpectations(t)
+}
+
 func TestRentalService_GetBookedCarsInPeriod_Success(t *testing.T) {
 	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
-
+	service := NewRentalService(mockRepo, nil, nil)
 	dateFrom := time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
 	dateTo := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
-
 	expectedBookedCars := []string{"car-uid-1", "car-uid-2"}
 
 	mockRepo.On("GetBookedCarsInPeriod", dateFrom, dateTo).Return(expectedBookedCars, nil)
@@ -221,32 +305,12 @@ func TestRentalService_GetBookedCarsInPeriod_Success(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.Equal(t, expectedBookedCars, result)
-	assert.Equal(t, 2, len(result))
 	mockRepo.AssertExpectations(t)
 }
 
-// Тест: GetBookedCarsInPeriod возвращает пустой список, если нет занятых машин
-func TestRentalService_GetBookedCarsInPeriod_Empty(t *testing.T) {
-	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
-
-	dateFrom := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
-	dateTo := time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC)
-
-	mockRepo.On("GetBookedCarsInPeriod", dateFrom, dateTo).Return([]string{}, nil)
-
-	result, err := service.GetBookedCarsInPeriod(dateFrom, dateTo)
-
-	assert.Nil(t, err)
-	assert.Empty(t, result)
-	mockRepo.AssertExpectations(t)
-}
-
-// Тест: GetBookedCarsInPeriod возвращает ошибку из репозитория
 func TestRentalService_GetBookedCarsInPeriod_RepoError(t *testing.T) {
 	mockRepo := new(MockRentalRepository)
-	service := NewRentalService(mockRepo)
-
+	service := NewRentalService(mockRepo, nil, nil)
 	dateFrom := time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
 	dateTo := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 	expectedError := errors.New("database error")

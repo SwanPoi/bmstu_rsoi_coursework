@@ -9,6 +9,7 @@ import (
 	repo "github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/repositories"
 	server "github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/server"
 	services "github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/services"
+	event "github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/event"
 )
 
 func main() {
@@ -32,8 +33,23 @@ func main() {
 	log.Print("Successfully connect to database")
 	db.AutoMigrate(&models.Rental{})
 
+	var publisher event.TransactionalEventPublisher
+	if cfg.KafkaBrokers != "" {
+		outboxPub, err := event.NewOutboxPublisher(db, cfg.KafkaBrokers)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize Outbox publisher: %v", err)
+			publisher = &event.NoopPublisher{}
+		} else {
+			publisher = outboxPub
+			defer outboxPub.Close()
+		}
+	} else {
+		log.Println("Warning: KAFKA_BROKERS not set. Using NoopPublisher")
+		publisher = &event.NoopPublisher{}
+	}
+
 	repos := repo.NewRepository(db)
-	service := services.NewServices(repos)
+	service := services.NewServices(repos, publisher, db)
 	handler := handler.NewHandler(service, &cfg)
 
 	srv := new(server.CommonServer)

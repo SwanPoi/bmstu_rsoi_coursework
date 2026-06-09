@@ -9,9 +9,12 @@ import (
 type IRentalRepo interface {
 	GetRentalByUid(uid string) (*models.Rental, error)
 	GetUserRentals(username string) ([]models.RentalResponse, error)
-	CreateRental(models.Rental) (error)
-	UpdateRental(rental models.RentalUpsert, uid string, username string) (*models.RentalResponse, error)
+	// CreateRental(models.Rental) (error)
+	CreateRental(tx *gorm.DB, rental models.Rental) error
+	// UpdateRental(rental models.RentalUpsert, uid string, username string) (*models.RentalResponse, error)
+	UpdateRental(tx *gorm.DB, rental models.RentalUpsert, uid string, username string) (*models.RentalResponse, error)
 	GetBookedCarsInPeriod(dateFrom, dateTo time.Time) ([]string, error)
+	GetRentalByUidInTransaction(tx *gorm.DB, uid string) (*models.Rental, error)
 }
 
 type Repository struct {

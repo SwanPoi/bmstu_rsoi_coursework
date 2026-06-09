@@ -47,15 +47,25 @@ func (r *RentalPostgres) GetUserRentals(username string) ([]models.RentalRespons
 	return responses, nil
 }
 
-func (r *RentalPostgres) CreateRental(rental models.Rental) (error) {
-	return r.DB.Create(&rental).Error
+func (r *RentalPostgres) GetRentalByUidInTransaction(tx *gorm.DB, uid string) (*models.Rental, error) {
+	var rental models.Rental
+	if err := tx.Where("rental_uid = ?", uid).First(&rental).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, models.ErrorNotFound
+		}
+		return nil, err
+	}
+	return &rental, nil
 }
 
-func (r *RentalPostgres) UpdateRental(rentalUpsert models.RentalUpsert, uid string, username string) (*models.RentalResponse, error) {
-	result := r.DB.Model(&models.Rental{}).
-					Where("rental_uid = ? AND username = ?", uid, username).
-					Update("status", rentalUpsert.Status)
-	
+func (r *RentalPostgres) CreateRental(tx *gorm.DB, rental models.Rental) error {
+	return tx.Create(&rental).Error
+}
+
+func (r *RentalPostgres) UpdateRental(tx *gorm.DB, rentalUpsert models.RentalUpsert, uid string, username string) (*models.RentalResponse, error) {
+	result := tx.Model(&models.Rental{}).
+		Where("rental_uid = ? AND username = ?", uid, username).
+		Update("status", rentalUpsert.Status)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -65,13 +75,11 @@ func (r *RentalPostgres) UpdateRental(rentalUpsert models.RentalUpsert, uid stri
 	}
 
 	var rental models.Rental
-
-	if err := r.DB.Omit("id", "username").Where("rental_uid = ? AND username = ?", uid, username).Find(&rental).Error; err != nil {
+	if err := tx.Omit("id", "username").Where("rental_uid = ? AND username = ?", uid, username).Find(&rental).Error; err != nil {
 		return nil, err
 	}
 
 	updatedRental := utils.ConvertToRentalResponse(rental)
-
 	return &updatedRental, nil
 }
 

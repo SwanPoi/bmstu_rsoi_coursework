@@ -2,6 +2,8 @@ package services
 
 import (
 	"time"
+	"gorm.io/gorm"
+	"github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/event"
 	"github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/models"
 	repo "github.com/SwanPoi/bmstu_rsoi_lab2/src/rental/repositories"
 )
@@ -18,8 +20,8 @@ type Services struct {
 	IRentalService
 }
 
-func NewServices(repo *repo.Repository) *Services {
+func NewServices(repo *repo.Repository, publisher event.TransactionalEventPublisher, db *gorm.DB) *Services {
 	return &Services{
-		IRentalService: NewRentalService(repo),
+		IRentalService: NewRentalService(repo, publisher, db),
 	}
 }
