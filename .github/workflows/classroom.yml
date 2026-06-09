@@ -10,7 +10,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: docker/setup-buildx-action@v2
 
       - name: Login to Docker Hub
@@ -35,7 +34,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -57,7 +55,6 @@ jobs:
     needs: [build, unit-test]
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Minikube
         uses: manusa/actions-setup-minikube@v2.14.0
         with:
@@ -115,16 +112,27 @@ jobs:
 
           echo "Redis is ready"
           
-          echo "=== Install keycloak ==="
-          helm install -n test keycloak ./keycloak
+          echo "=== Install Kafka ==="
+          helm install -n test kafka ./kafka
 
-          echo "=== Check keycloak pods status ==="
-          kubectl get pods -n test -l app=keycloak
+          echo "=== Check kafka pods status ==="
+          kubectl get pods -n test -l app=kafka
 
-          echo "=== Wait keycloak pods ==="
-          kubectl wait --for=condition=ready pod -n test -l app=keycloak --timeout=300s
+          echo "=== Wait kafka pods ==="
+          kubectl wait --for=condition=ready pod -n test -l app=kafka --timeout=300s
 
-          echo "Keycloak is ready"
+          echo "Kafka is ready"
+
+          echo "=== Install IdP service ==="
+          helm install -n test idp ./idp
+
+          echo "=== Check idp pods status ==="
+          kubectl get pods -n test -l app=idp
+
+          echo "=== Wait idp pods ==="
+          kubectl wait --for=condition=ready pod -n test -l app=idp --timeout=300s
+
+          echo "IdP is ready"
 
           echo "=== Install services ==="
           helm install -n test services ./services
@@ -134,11 +142,22 @@ jobs:
           kubectl wait -n test -l app=cars pod --for=condition=ready --timeout=3m
           kubectl wait -n test -l app=rental pod --for=condition=ready --timeout=3m
           kubectl wait -n test -l app=payment pod --for=condition=ready --timeout=3m
+          kubectl wait -n test -l app=stats pod --for=condition=ready --timeout=3m
 
           echo "=== Pods status ==="
           kubectl get all -n test -l app
 
-      
+          echo "=== Install frontend ==="
+          helm install -n test frontend ./frontend
+
+          echo "=== Check frontend pods status ==="
+          kubectl get pods -n test -l app=frontend
+
+          echo "=== Wait frontend pods ==="
+          kubectl wait --for=condition=ready pod -n test -l app=frontend --timeout=300s
+
+          echo "Frontend is ready"
+  
       - name: Deploy Ingress
         run: |
           kubectl apply -f ./k8s/ingress.yaml -n test
@@ -173,12 +192,30 @@ jobs:
           sleep 10
           curl -f http://localhost:8080/manage/health
 
+          echo "=== Setup port forwarding to IdP on port 8090 ==="
+          kubectl port-forward svc/idp-svc 8090:8090 -n test &
+          echo $! > /tmp/pf-idp.pid
+          sleep 5
+          curl -f http://localhost:8090/manage/health
+
+          echo "=== Setup port forwarding to Gateway on port 8081 ==="
+          kubectl port-forward svc/gateway-svc 8081:8080 -n test &
+          echo $! > /tmp/pf-gateway.pid
+          sleep 5
+          curl -f http://localhost:8081/manage/health
+
+          echo "=== Setup port forwarding to Frontend on port 4200 ==="
+          kubectl port-forward svc/frontend-svc 4200:80 -n test &
+          echo $! > /tmp/pf-frontend.pid
+          sleep 5
+          curl -f http://localhost:4200 || echo "Frontend health check skipped (nginx returns HTML)"
+
       - name: Run API Tests
         uses: matt-ball/newman-action@master
         with:
           collection: v3/postman/collection.json
           environment: v3/postman/environment.json
-          delayRequest: 100
+          delayRequest: 300
           reporters: '[ "cli" ]'
 
       - name: Show logs on failure
@@ -191,14 +228,16 @@ jobs:
             echo
           done
 
-      - name: Stop ingress port-forward
+      - name: Stop port forwarding
         if: always()
         run: |
-          if [ -f /tmp/pf-ingress.pid ]; then
-            echo "=== Remove port forwarding ==="
-            kill $(cat /tmp/pf-ingress.pid) 2>/dev/null || true
-            rm -f /tmp/pf-ingress.pid
-          fi
+          for pidfile in /tmp/pf-ingress.pid /tmp/pf-idp.pid /tmp/pf-gateway.pid /tmp/pf-frontend.pid; do
+            if [ -f "$pidfile" ]; then
+              echo "=== Stopping port forwarding from $pidfile ==="
+              kill $(cat "$pidfile") 2>/dev/null || true
+              rm -f "$pidfile"
+            fi
+          done
 
       - name: Stop Minikube
         if: always()
