@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  labels:
+    app: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: kafka
+          image: {{ .Values.kafka.image }}
+          ports:
+            {{- range .Values.kafka.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .targetPort }}
+            {{- end }}
+          env:
+            {{- range $key, $value := .Values.kafka.env }}
+            - name: {{ $key }}
+              value: "{{ $value }}"
+            {{- end }}
+          # ДОБАВЛЕНО: Проверки здоровья, чтобы избежать "connection refused"
+          readinessProbe:
+            tcpSocket:
+              port: 29092
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 29092
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.kafka.name }}
+  labels:
+    app: kafka
+spec:
+  selector:
+    app: kafka
+  ports:
+    {{- range .Values.kafka.ports }}
+    - name: {{ .name }}
+      protocol: TCP
+      port: {{ .targetPort }}
+      targetPort: {{ .targetPort }}
+    {{- end }}
+  type: ClusterIP

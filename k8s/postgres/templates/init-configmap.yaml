@@ -22,6 +22,9 @@ data:
     CREATE DATABASE idp;
     GRANT ALL PRIVILEGES ON DATABASE idp TO program;
 
+    CREATE DATABASE stats;
+    GRANT ALL PRIVILEGES ON DATABASE stats TO program;
+
   02-cars-schema.sql: |
     \c cars;
     CREATE TABLE IF NOT EXISTS cars
@@ -47,7 +50,19 @@ data:
       ('7f8a9b0c-1d2e-3f4a-5b6c-7d8e9f0a1b2c', 'Volkswagen', 'Tiguan 2.0 TSI', 'П678РС150', 220, 3800, 'SUV', true),
       ('8a9b0c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d', 'Kia', 'Carnival 2.2 CRDi', 'Т901УФ799', 199, 4500, 'MINIVAN', true)
     ON CONFLICT DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS outbox (
+        id SERIAL PRIMARY KEY,
+        topic VARCHAR(100) NOT NULL,
+        payload JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        processed BOOLEAN DEFAULT FALSE,
+        retry_count INT DEFAULT 0,
+        last_error TEXT
+    );
+
     ALTER TABLE cars OWNER TO program;
+    ALTER TABLE outbox OWNER TO program;
 
   03-payments-schema.sql: |
     \c payments;
@@ -58,6 +73,18 @@ data:
         status      VARCHAR(20) NOT NULL CHECK (status IN ('PAID', 'CANCELED')),
         price       INT         NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS outbox (
+        id SERIAL PRIMARY KEY,
+        topic VARCHAR(100) NOT NULL,
+        payload JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        processed BOOLEAN DEFAULT FALSE,
+        retry_count INT DEFAULT 0,
+        last_error TEXT
+    );
+
+    ALTER TABLE outbox OWNER TO program;
     ALTER TABLE payment OWNER TO program;
 
   04-rentals-schema.sql: |
@@ -73,6 +100,18 @@ data:
         date_to     TIMESTAMP WITH TIME ZONE NOT NULL,
         status      VARCHAR(20)              NOT NULL CHECK (status IN ('IN_PROGRESS', 'FINISHED', 'CANCELED'))
     );
+
+    CREATE TABLE IF NOT EXISTS outbox (
+        id SERIAL PRIMARY KEY,
+        topic VARCHAR(100) NOT NULL,
+        payload JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        processed BOOLEAN DEFAULT FALSE,
+        retry_count INT DEFAULT 0,
+        last_error TEXT
+    );
+
+    ALTER TABLE outbox OWNER TO program;
     ALTER TABLE rental OWNER TO program;
   
   05-idp-schema.sql: |
@@ -120,8 +159,79 @@ data:
     ('00000000-0000-0000-0000-000000000001', 'admin', '$2a$10$JFutNmsrbM1VANznxFznkOD4PkUi1G0cylH2obeYoSfMUVkWkIYf.', 'admin@mail.ru', '{Admin}')
     ON CONFLICT (username) DO NOTHING;
 
+    CREATE TABLE IF NOT EXISTS outbox (
+        id SERIAL PRIMARY KEY,
+        topic VARCHAR(100) NOT NULL,
+        payload JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        processed BOOLEAN DEFAULT FALSE,
+        retry_count INT DEFAULT 0,
+        last_error TEXT
+    );
+
+    ALTER TABLE outbox OWNER TO program;
+
     ALTER TABLE users OWNER TO program;
     ALTER TABLE oauth_clients OWNER TO program;
     ALTER TABLE auth_codes OWNER TO program;
     ALTER TABLE refresh_tokens OWNER TO program;
+
+  06-stats-schema.sql: |
+    \c stats;
+    
+    CREATE TABLE IF NOT EXISTS rental_stats (
+        id SERIAL PRIMARY KEY,
+        rental_uid UUID UNIQUE NOT NULL,
+        username VARCHAR(80) NOT NULL,
+        car_uid UUID NOT NULL,
+        date_from TIMESTAMP WITH TIME ZONE NOT NULL,
+        date_to TIMESTAMP WITH TIME ZONE NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        payment_uid UUID NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    CREATE TABLE IF NOT EXISTS payment_stats (
+        id SERIAL PRIMARY KEY,
+        payment_uid UUID UNIQUE NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        price INT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    CREATE TABLE IF NOT EXISTS car_stats (
+        id SERIAL PRIMARY KEY,
+        car_uid UUID NOT NULL,
+        brand VARCHAR(80) NOT NULL,
+        model VARCHAR(80) NOT NULL,
+        type VARCHAR(20) NOT NULL,
+        price INT NOT NULL,
+        action VARCHAR(20) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    INSERT INTO car_stats (car_uid, brand, model, type, price, action, created_at) VALUES
+        ('109b42f3-198d-4c89-9276-a7520a7120ab', 'Mercedes Benz', 'GLA 250', 'SEDAN', 3500, 'created', NOW() - INTERVAL '30 days'),
+        ('2a3b4c5d-6e7f-8a9b-0c1d-2e3f4a5b6c7d', 'BMW', 'X5 xDrive40i', 'SUV', 5500, 'created', NOW() - INTERVAL '28 days'),
+        ('3b4c5d6e-7f8a-9b0c-1d2e-3f4a5b6c7d8e', 'Audi', 'A6 55 TFSI', 'SEDAN', 4800, 'created', NOW() - INTERVAL '25 days'),
+        ('4c5d6e7f-8a9b-0c1d-2e3f-4a5b6c7d8e9f', 'Toyota', 'Camry 3.5', 'SEDAN', 3200, 'created', NOW() - INTERVAL '20 days'),
+        ('5d6e7f8a-9b0c-1d2e-3f4a-5b6c7d8e9f0a', 'Mercedes Benz', 'V-Class V 300', 'MINIVAN', 6500, 'created', NOW() - INTERVAL '18 days'),
+        ('6e7f8a9b-0c1d-2e3f-4a5b-6c7d8e9f0a1b', 'Porsche', '911 Carrera S', 'ROADSTER', 12000, 'created', NOW() - INTERVAL '15 days'),
+        ('7f8a9b0c-1d2e-3f4a-5b6c-7d8e9f0a1b2c', 'Volkswagen', 'Tiguan 2.0 TSI', 'SUV', 3800, 'created', NOW() - INTERVAL '12 days'),
+        ('8a9b0c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d', 'Kia', 'Carnival 2.2 CRDi', 'MINIVAN', 4500, 'created', NOW() - INTERVAL '10 days')
+    ON CONFLICT DO NOTHING;
+    
+    CREATE TABLE IF NOT EXISTS user_stats (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(80) NOT NULL,
+        action VARCHAR(20) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    ALTER TABLE rental_stats OWNER TO program;
+    ALTER TABLE payment_stats OWNER TO program;
+    ALTER TABLE car_stats OWNER TO program;
+    ALTER TABLE user_stats OWNER TO program;
 

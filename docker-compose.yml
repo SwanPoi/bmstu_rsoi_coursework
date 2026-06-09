@@ -1,25 +1,43 @@
 version: "3"
 services:
   gateway:
-    image: swanpoi/gateway:5.0.0
+    image: swanpoi/gateway:6.7.0
     build:
       context: src/gateway
       dockerfile: Dockerfile
 
   cars:
-    image: swanpoi/car-service:5.0.0
+    image: swanpoi/car-service:6.6.0
     build:
       context: src/car
       dockerfile: Dockerfile
 
   rental:
-    image: swanpoi/rental-service:5.0.0
+    image: swanpoi/rental-service:6.6.0
     build:
       context: src/rental
       dockerfile: Dockerfile
 
   payment:
-    image: swanpoi/payment-service:5.0.0
+    image: swanpoi/payment-service:6.6.0
     build:
       context: src/payment
+      dockerfile: Dockerfile
+
+  idp:
+    image: swanpoi/idp-service:1.7.0
+    build:
+      context: src/idp
+      dockerfile: Dockerfile
+
+  stats:
+    image: swanpoi/stats-service:1.4.0
+    build:
+      context: src/statistics
+      dockerfile: Dockerfile
+
+  frontend:
+    image: swanpoi/rental-frontend:1.0.0
+    build:
+      context: src/frontend
       dockerfile: Dockerfile

@@ -1,7 +1,7 @@
 name: idp
 image:
   repository: swanpoi/idp-service
-  tag: "1.2.0"
+  tag: "1.7.0"
   pullPolicy: Always
 
 replicaCount: 1
@@ -17,6 +17,7 @@ env:
   DB_USER: "postgres"
   DB_PASSWORD: "postgres"
   ISSUER_URL: "http://idp-svc:8090" 
+  KAFKA_BROKERS: "kafka-svc:29092"
 
 healthCheck:
   enabled: true

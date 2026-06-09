@@ -3,7 +3,7 @@ commonLabels:
 
 services:
   gateway:
-    image: swanpoi/gateway:6.4.0
+    image: swanpoi/gateway:6.7.0
     pullPolicy: Always
     port: 8080
     nodePort: 30000
@@ -17,10 +17,11 @@ services:
       CAR_URL: http://cars-svc:8070/api/v1
       RENTAL_URL: http://rental-svc:8060/api/v1
       PAYMENT_URL: http://payment-svc:8050/api/v1
+      STATS_URL: http://stats-svc:8040/api/v1
       OIDC_ISSUER_URL: "http://idp-svc:8090"
       OIDC_CLIENT_ID: "car-rental-client"
       OIDC_CLIENT_SECRET: "secret-gateway-bff-key"
-      FRONTEND_URL: "http://localhost:3000" 
+      FRONTEND_URL: "http://localhost:4200" 
       IDP_PUBLIC_URL: "http://localhost:8090"
     healthCheck:
       enabled: true
@@ -37,7 +38,7 @@ services:
         failureThreshold: 3
 
   cars:
-    image: swanpoi/car-service:6.4.0
+    image: swanpoi/car-service:6.6.0
     pullPolicy: Always
     port: 8070
     serviceType: ClusterIP
@@ -50,8 +51,9 @@ services:
       DB_NAME: cars
       DB_USER: postgres
       DB_PASSWORD: "postgres"
-      OIDC_ISSUER_URL: "http://idp-svc:8090" #"http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_ISSUER_URL: "http://idp-svc:8090"
       OIDC_CLIENT_ID: "car-rental-client"
+      KAFKA_BROKERS: "kafka-svc:29092"
     healthCheck:
       enabled: true
       path: /manage/health
@@ -67,7 +69,7 @@ services:
         failureThreshold: 3
 
   rental:
-    image: swanpoi/rental-service:6.4.0
+    image: swanpoi/rental-service:6.6.0
     pullPolicy: Always
     port: 8060
     serviceType: ClusterIP
@@ -80,8 +82,9 @@ services:
       DB_NAME: rentals
       DB_USER: postgres
       DB_PASSWORD: "postgres"
-      OIDC_ISSUER_URL: "http://idp-svc:8090" #"http://keycloak-svc:8080/realms/car-rental-system"
+      OIDC_ISSUER_URL: "http://idp-svc:8090"
       OIDC_CLIENT_ID: "car-rental-client"
+      KAFKA_BROKERS: "kafka-svc:29092"
     healthCheck:
       enabled: true
       path: /manage/health
@@ -97,7 +100,7 @@ services:
         failureThreshold: 3
 
   payment:
-    image: swanpoi/payment-service:6.0.0
+    image: swanpoi/payment-service:6.6.0
     pullPolicy: Always
     port: 8050
     serviceType: ClusterIP
@@ -112,6 +115,46 @@ services:
       DB_PASSWORD: "postgres"
       OIDC_ISSUER_URL: "http://idp-svc:8090" #"http://keycloak-svc:8080/realms/car-rental-system"
       OIDC_CLIENT_ID: "car-rental-client"
+      KAFKA_BROKERS: "kafka-svc:29092"
+    healthCheck:
+      enabled: true
+      path: /manage/health
+      readinessProbe:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+
+  stats:
+    name: stats
+    replicas: 1
+    image: swanpoi/stats-service:1.4.0
+    pullPolicy: Always
+    port: 8040
+
+    env:
+      HOST: "0.0.0.0"
+      PORT: "8040"
+      DB_HOST: postgres-svc
+      DB_PORT: "5432"
+      DB_NAME: stats
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      KAFKA_BROKERS: "kafka-svc:29092"
+      ISSUER_URL: http://idp-svc:8090
+      OIDC_CLIENT_ID: "car-rental-client"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"
     healthCheck:
       enabled: true
       path: /manage/health

@@ -1,25 +1,43 @@
 version: "3"
 services:
   gateway:
-    image: ${DOCKERHUB_USERNAME}/gateway:5.0.0
+    image: ${DOCKERHUB_USERNAME}/gateway:6.7.0
     build:
       context: src/gateway
       dockerfile: Dockerfile
 
   cars:
-    image: ${DOCKERHUB_USERNAME}/car-service:5.0.0
+    image: ${DOCKERHUB_USERNAME}/car-service:6.6.0
     build:
       context: src/car
       dockerfile: Dockerfile
 
   rental:
-    image: ${DOCKERHUB_USERNAME}/rental-service:5.0.0
+    image: ${DOCKERHUB_USERNAME}/rental-service:6.6.0
     build:
       context: src/rental
       dockerfile: Dockerfile
 
   payment:
-    image: ${DOCKERHUB_USERNAME}/payment-service:5.0.0
+    image: ${DOCKERHUB_USERNAME}/payment-service:6.6.0
     build:
       context: src/payment
+      dockerfile: Dockerfile
+
+  idp:
+    image: ${DOCKERHUB_USERNAME}/idp-service:1.7.0
+    build:
+      context: src/idp
+      dockerfile: Dockerfile
+
+  stats:
+    image: ${DOCKERHUB_USERNAME}/stats-service:1.4.0
+    build:
+      context: src/statistics
+      dockerfile: Dockerfile
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME}/rental-frontend:1.0.0
+    build:
+      context: src/frontend
       dockerfile: Dockerfile
