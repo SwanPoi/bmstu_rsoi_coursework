@@ -70,7 +70,7 @@ func (s *PaymentService) UpdatePayment(payment models.PaymentUpsert, uid string)
 
 func (s *PaymentService) CreatePayment(paymentInsert models.PaymentCreate) (*models.PaymentResponse, error) {
 	duration := paymentInsert.DateTo.Sub(paymentInsert.DateFrom)
-	days := int(math.Round(duration.Round(time.Hour).Hours() / 24))
+	days := int(math.Round(duration.Round(time.Hour).Hours() / 24)) + 1
 	price := paymentInsert.PricePerDay * days
 	
 	payment := models.Payment{
