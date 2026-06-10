@@ -158,7 +158,7 @@ export class CarDetailComponent implements OnInit {
     if (!from || !to) return 0;
     const diffTime = Math.abs(to.getTime() - from.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays || 1;
+    return (diffDays || 0) + 1;
   });
 
   protected readonly totalPrice = computed(() => {

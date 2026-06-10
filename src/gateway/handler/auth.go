@@ -53,7 +53,7 @@ func (h *GatewayHandler) Callback(c *gin.Context) {
 	}
 
 	savedState, err := c.Cookie("oauth_state")
-	c.SetCookie("oauth_state", "", -1, "/", "", false, true) // Очищаем cookie сразу после использования
+	c.SetCookie("oauth_state", "", -1, "/", "", false, true) 
 	if err != nil || state != savedState {
 		c.JSON(http.StatusForbidden, gin.H{"message": "Invalid state parameter (CSRF protection)"})
 		return

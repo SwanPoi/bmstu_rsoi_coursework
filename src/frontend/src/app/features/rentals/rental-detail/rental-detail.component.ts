@@ -135,7 +135,6 @@ export class RentalDetailComponent implements OnInit {
         });
     }
 
-    // Вспомогательные методы для красивого отображения статуса
     getStatusText(status: string): string {
         const map: Record<string, string> = { 
         'IN_PROGRESS': 'Активна', 

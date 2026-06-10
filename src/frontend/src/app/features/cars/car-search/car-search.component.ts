@@ -192,7 +192,7 @@ export class CarSearchComponent implements OnInit {
     this.filterDateTo.set('');
     this.clearDatesFromStorage();
     this.currentPage.set(1);
-    this.cars.set([]); // Очищаем список при сбросе дат
+    this.cars.set([]);
     this.totalElements.set(0);
   }
 
@@ -204,7 +204,6 @@ export class CarSearchComponent implements OnInit {
   }
 
   private loadCars(): void {
-    // Не загружаем автомобили, если даты не введены
     if (!this.currentDateFrom || !this.currentDateTo) return;
     
     this.loading.set(true);

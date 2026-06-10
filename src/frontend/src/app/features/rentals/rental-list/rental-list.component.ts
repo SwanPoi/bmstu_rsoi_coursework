@@ -132,7 +132,7 @@ export class RentalListComponent {
   private readonly rentalService = inject(RentalService);
 
   protected readonly rentals = signal<Rental[]>([]);
-  protected readonly groupByStatus = signal<boolean>(true); // По умолчанию включено
+  protected readonly groupByStatus = signal<boolean>(true);
 
   private readonly statusOrder: Record<RentalStatus, number> = {
     'IN_PROGRESS': 0,

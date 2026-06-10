@@ -31,7 +31,7 @@ func (h *GatewayHandler) AuthMiddleware() gin.HandlerFunc {
 
 		idToken, err := h.verifier.Verify(c.Request.Context(), token)
 		if err != nil {
-			c.SetCookie("access_token", "", -1, "/", "", false, true) // Очистка невалидной куки
+			c.SetCookie("access_token", "", -1, "/", "", false, true)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, models.ErrorResponse{Message: "Invalid or expired token"})
 			return
 		}

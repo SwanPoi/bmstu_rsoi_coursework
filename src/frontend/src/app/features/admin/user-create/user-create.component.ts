@@ -69,7 +69,6 @@ export class UserCreateComponent implements OnInit {
   private readonly apiUrl = environment.apiUrl; 
 
   ngOnInit(): void {
-    // Обрабатываем параметры после возврата с IdP
     this.route.queryParams.subscribe(params => {
       if (params['created'] === 'true') {
         this.toast.showSuccess('Пользователь успешно создан');

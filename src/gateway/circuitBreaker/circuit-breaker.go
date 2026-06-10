@@ -12,7 +12,6 @@ const (
 	StateHalfOpen = "half-open"
 )
 
-// TODO: переделать под циклический массив
 type CircuitBreaker struct {
 	mu					sync.RWMutex
 	State 				string

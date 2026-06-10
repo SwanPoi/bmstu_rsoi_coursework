@@ -311,7 +311,7 @@ func (h *GatewayHandler) GetUserRentals(ctx *gin.Context) {
 	if err == nil && carStatus == http.StatusOK && len(carBody) > 2 && string(carBody) != "{}" {
 		if err := json.Unmarshal(carBody, &cars); err != nil {
 			log.Println("GET /rentals, car parsing error, ", err.Error())
-			cars = nil // Будем использовать fallback
+			cars = nil
 		}
 	}
 	
@@ -329,7 +329,7 @@ func (h *GatewayHandler) GetUserRentals(ctx *gin.Context) {
 	if err == nil && paymentStatus == http.StatusOK && len(paymentBody) > 2 && string(paymentBody) != "{}" {
 		if err := json.Unmarshal(paymentBody, &payments); err != nil {
 			log.Println("GET /rentals, payments parsing error, ", err.Error())
-			payments = nil // Будем использовать fallback
+			payments = nil
 		}
 	}
 	
@@ -415,7 +415,6 @@ func (h *GatewayHandler) GetRentalById(ctx *gin.Context) {
 	// 	return
 	// }
 
-	// TODO: уточнить
 	if carStatus != http.StatusOK && err == nil {
 		log.Println("GET /rental/:id, car getting error with uid = " + rental.CarUID + " ")
 		ctx.Data(carStatus, "application/json", carBody)
@@ -584,7 +583,7 @@ func (h *GatewayHandler) RentCar(ctx *gin.Context) {
 		return
 	}
 
-	// 4. Создание аренду
+	// 4. Создание аренды
 	rentCreation := models.RentCreation{
 		DateFrom:   rentReq.DateFrom,
 		DateTo:     rentReq.DateTo,
