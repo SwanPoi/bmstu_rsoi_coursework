@@ -1,6 +1,21 @@
 #!/bin/bash
 NAMESPACE="test"
+
 echo "=== Очистка ресурсов в namespace $NAMESPACE ==="
+
+echo "- Остановка проброса портов (Port Forwarding) -"
+for pidfile in /tmp/car-rental-pf-*.pid; do
+    if [ -f "$pidfile" ]; then
+        pid=$(cat "$pidfile")
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "  Остановка процесса port-forward (PID: $pid) ..."
+            kill "$pid" 2>/dev/null
+        fi
+        rm -f "$pidfile"
+    fi
+done
+echo "  Проброс портов остановлен."
+echo ""
 
 echo "- Удаление Ingress -"
 kubectl delete ingress car-rental-ingress -n $NAMESPACE --ignore-not-found=true
