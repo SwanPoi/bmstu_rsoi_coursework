@@ -35,7 +35,7 @@ import { CommonModule, DatePipe } from '@angular/common';
           </div>
           <div class="info-row">
             <span class="label">Стоимость:</span>
-            <span class="value price">{{ rental()!.payment.price }} ₽</span>
+            <span class="value price">{{ rental()!.payment.price || '-' }} ₽</span>
           </div>
 
           @if (rental()!.status === 'IN_PROGRESS') {

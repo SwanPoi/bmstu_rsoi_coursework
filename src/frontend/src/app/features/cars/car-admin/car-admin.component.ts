@@ -178,7 +178,7 @@ import { ToastService } from '../../../core/services/toast.service';
                   <p class="car-item__reg">{{ car.registrationNumber }}</p>
                   <div class="car-item__specs">
                     <span>{{ car.power }} л.с.</span>
-                    <span class="car-item__price">{{ car.price }} ₽/день</span>
+                    <span class="car-item__price">{{ car.price || '-' }} ₽/день</span>
                   </div>
                 </div>
               </div>

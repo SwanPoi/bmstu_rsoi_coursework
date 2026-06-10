@@ -20,7 +20,7 @@ import { Rental } from '../../models/rental.model';
       <div class="rental-card__body">
         <h3>{{ rental().car.brand }} {{ rental().car.model }}</h3>
         <p class="muted">{{ rental().car.registrationNumber }}</p>
-        <p class="price">{{ rental().payment.price }} ₽</p>
+        <p class="price">{{ rental()!.payment.price || '-'  }} ₽</p>
       </div>
       <div class="rental-card__footer">
         <a [routerLink]="['/rentals', rental().rentalUid]" class="btn-details">

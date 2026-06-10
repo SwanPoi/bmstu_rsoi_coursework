@@ -6,11 +6,11 @@
     <div class="car-card__body">
     <div class="car-card__row">
         <span class="car-card__label">Класс:</span>
-        <span class="car-card__value">{{ typeMap[car().type] || car().type }}</span>
+        <span class="car-card__value">{{ typeMap[car().type] || car().type || '-' }}</span>
     </div>
     <div class="car-card__row">
         <span class="car-card__label">Стоимость:</span>
-        <span class="car-card__value car-card__price">{{ car().price }} ₽/день</span>
+        <span class="car-card__value car-card__price">{{ car().price || '-' }} ₽/день</span>
     </div>
     </div>
     <div class="car-card__footer">

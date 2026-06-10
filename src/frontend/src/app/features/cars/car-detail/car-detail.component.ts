@@ -26,7 +26,7 @@ import { ToastService } from '../../../core/services/toast.service';
         <div class="car-detail__info">
           <p><strong>Гос. номер:</strong> {{ car()!.registrationNumber || 'Не указан' }}</p>
           <p><strong>Мощность:</strong> {{ car()!.power }} л.с.</p>
-          <p><strong>Цена:</strong> {{ car()!.price }} ₽/день</p>
+          <p><strong>Цена:</strong> {{ car()!.price || '-' }} ₽/день</p>
         </div>
 
         <div class="car-detail__booking">
